@@ -1,7 +1,5 @@
 package main
 
-import rl "vendor:raylib"
-
 Config :: struct {
     font_size:         f32,
     tab_size:          int,
