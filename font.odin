@@ -12,25 +12,21 @@ Font_State :: struct {
 }
 
 font_init :: proc(fs: ^Font_State, config: ^Config) {
-    fs.font_size = config.font_size
+    fs.font_size = 16.0 // Increased to 16 for better readability
     fs.line_height = fs.font_size * config.line_height_mult
     
     mono_path := "assets/fonts/JetBrainsMono-Regular.ttf"
     
-    // Load JetBrains Mono (we know this works from your logs!)
     if os.exists(mono_path) {
-        fs.mono = rl.LoadFontEx(cstring(raw_data(mono_path)), i32(fs.font_size), nil, 0)
+        // Load at DOUBLE size (32) and use Bilinear filter for perfect crispness when scaled down to 16
+        fs.mono = rl.LoadFontEx(cstring(raw_data(mono_path)), 32, nil, 0)
         rl.SetTextureFilter(fs.mono.texture, .BILINEAR)
-        
-        // Use the exact same high-quality font for the UI to guarantee it looks clean
         fs.ui = fs.mono 
     } else {
-        // Absolute fallback (should not happen based on your logs)
         fs.mono = rl.GetFontDefault()
         fs.ui   = rl.GetFontDefault()
     }
     
-    // Measure the exact width of a single monospace character
     measure := rl.MeasureTextEx(fs.mono, "M", fs.font_size, 0)
     fs.char_width = measure.x
 }

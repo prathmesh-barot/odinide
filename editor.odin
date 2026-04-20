@@ -5,7 +5,7 @@ import "core:strings"
 import rl "vendor:raylib"
 
 Gap_Buffer :: struct {
-    data:     []u8,
+    data:[]u8,
     gap_pos:  int,
     gap_len:  int,
     length:   int,
@@ -18,25 +18,14 @@ Cursor :: struct {
     sticky_col: int,
 }
 
-Selection :: struct {
-    active: bool,
-    anchor: int,
-    head:   int,
-}
-
 Editor_State :: struct {
     buffer:          Gap_Buffer,
     cursor:          Cursor,
-    selection:       Selection,
     file_path:       string,
     is_modified:     bool,
     scroll_offset:   rl.Vector2,
     target_scroll_y: f32,
-    top_line:        int,
-    view_lines:      int,
 }
-
-Cursor_Dir :: enum { Left, Right, Up, Down, Line_Start, Line_End, File_Start, File_End }
 
 gap_buffer_init :: proc(gb: ^Gap_Buffer, initial_capacity: int) {
     gb.data = make([]u8, initial_capacity)
@@ -48,10 +37,8 @@ gap_buffer_init :: proc(gb: ^Gap_Buffer, initial_capacity: int) {
 gap_buffer_move_gap :: proc(gb: ^Gap_Buffer, pos: int) {
     if pos == gb.gap_pos do return
     if pos < gb.gap_pos {
-        size := gb.gap_pos - pos
         copy(gb.data[pos + gb.gap_len:], gb.data[pos : gb.gap_pos])
     } else {
-        size := pos - gb.gap_pos
         copy(gb.data[gb.gap_pos:], gb.data[gb.gap_pos + gb.gap_len : pos + gb.gap_len])
     }
     gb.gap_pos = pos
@@ -89,7 +76,9 @@ gap_buffer_to_string :: proc(gb: ^Gap_Buffer, allocator: mem.Allocator) -> strin
 }
 
 editor_insert_char :: proc(e: ^Editor_State, r: rune) {
-    s := utf8_encode_rune(r)
+    buf := new([4]u8, context.temp_allocator)
+    buf[0] = u8(r)
+    s := string(buf[:1])
     gap_buffer_insert(&e.buffer, e.cursor.pos, s)
     e.cursor.pos += len(s)
     e.is_modified = true
@@ -103,8 +92,34 @@ editor_delete_char_backward :: proc(e: ^Editor_State) {
     }
 }
 
-utf8_encode_rune :: proc(r: rune) -> string {
-    buf := new([4]u8, context.temp_allocator)
-    buf[0] = u8(r)
-    return string(buf[:1])
+// SYNCHRONIZATION LOGIC
+editor_sync_line_col :: proc(e: ^Editor_State) {
+    content := gap_buffer_to_string(&e.buffer, context.temp_allocator)
+    e.cursor.line, e.cursor.col = 0, 0
+    for i := 0; i < e.cursor.pos && i < len(content); i += 1 {
+        if content[i] == '\n' {
+            e.cursor.line += 1
+            e.cursor.col = 0
+        } else {
+            e.cursor.col += 1
+        }
+    }
+}
+
+editor_set_pos_from_line_col :: proc(e: ^Editor_State, target_line, target_col: int) {
+    content := gap_buffer_to_string(&e.buffer, context.temp_allocator)
+    line, col, pos := 0, 0, 0
+    for i := 0; i < len(content); i += 1 {
+        if line == target_line && col == target_col { break }
+        if content[i] == '\n' {
+            if line == target_line { break } // Prevents wrapping to next line if target_col is too high
+            line += 1
+            col = 0
+        } else {
+            col += 1
+        }
+        pos += 1
+    }
+    e.cursor.pos = pos
+    editor_sync_line_col(e)
 }
