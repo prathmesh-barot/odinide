@@ -14,27 +14,51 @@ renderer_draw_editor :: proc(app: ^App, e: ^Editor_State) {
     content := gap_buffer_to_string(&e.buffer, context.temp_allocator)
     lines := strings.split(content, "\n", context.temp_allocator)
     
-    // Draw Active Line Background Full Width
     active_y := (rect.y - e.scroll_offset.y) + (f32(e.cursor.line) * app.font.line_height)
     rl.DrawRectangleRec({rect.x, active_y, rect.width, app.font.line_height}, app.theme.bg_active_line)
     
     y: f32 = rect.y - e.scroll_offset.y
+    char_index := 0 // Track absolute position for selection rendering
+    
+    sel_start, sel_end := 0, 0
+    has_sel := editor_has_selection(e)
+    if has_sel do sel_start, sel_end = editor_get_selection_range(e)
     
     for line_str, i in lines {
+        line_len := len(line_str)
+        
         if y + app.font.line_height > rect.y && y < rect.y + rect.height {
             
-            // Gutter text (Allocated properly as a C-string)
+            // Selection Background Drawing
+            if has_sel {
+                if sel_start < char_index + line_len + 1 && sel_end > char_index {
+                    s_col := max(0, sel_start - char_index)
+                    e_col := min(line_len, sel_end - char_index)
+                    
+                    if e_col >= s_col {
+                        sx := rect.x + gutter_w + f32(s_col) * app.font.char_width
+                        sw := f32(e_col - s_col) * app.font.char_width
+                        // Add extra width to highlight the \n newline character
+                        if sel_end > char_index + line_len do sw += app.font.char_width * 0.5 
+                        
+                        rl.DrawRectangleRec({sx, y, sw, app.font.line_height}, app.theme.bg_highlight)
+                    }
+                }
+            }
+
+            // Gutter
             c_gutter := fmt.ctprintf("%d", i + 1)
             gw := rl.MeasureTextEx(app.font.ui, c_gutter, app.font.font_size, 0).x
             gutter_color := i == e.cursor.line ? app.theme.text_primary : app.theme.text_muted
             rl.DrawTextEx(app.font.ui, c_gutter, {rect.x + gutter_w - gw - 8, y}, app.font.font_size, 0, gutter_color)
             
-            // Text line (CRITICAL FIX: Clone slice to a null-terminated C-string so it doesn't draw the whole file)
-            if len(line_str) > 0 {
+            // Text
+            if line_len > 0 {
                 c_str := strings.clone_to_cstring(line_str, context.temp_allocator)
                 rl.DrawTextEx(app.font.mono, c_str, {rect.x + gutter_w, y}, app.font.font_size, 0, app.theme.text_primary)
             }
         }
+        char_index += line_len + 1 // +1 for the \n
         y += app.font.line_height
     }
     
@@ -49,7 +73,7 @@ renderer_draw_editor :: proc(app: ^App, e: ^Editor_State) {
     
     rl.EndScissorMode()
     
-    // Fully functional Scrollbar
+    // Scrollbar
     sb_rect := rl.Rectangle{rect.x + rect.width - 6, rect.y, 6, rect.height}
     rl.DrawRectangleRec(sb_rect, app.theme.bg_elevated)
     
