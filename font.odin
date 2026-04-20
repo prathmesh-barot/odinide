@@ -1,6 +1,7 @@
 package main
 
 import "core:os"
+import "core:strings"
 import rl "vendor:raylib"
 
 Font_State :: struct {
@@ -12,13 +13,12 @@ Font_State :: struct {
 }
 
 font_init :: proc(fs: ^Font_State, config: ^Config) {
-    fs.font_size = 16.0 // Increased to 16 for better readability
+    fs.font_size = 15.0
     fs.line_height = fs.font_size * config.line_height_mult
     
     mono_path := "assets/fonts/JetBrainsMono-Regular.ttf"
     
     if os.exists(mono_path) {
-        // Load at DOUBLE size (32) and use Bilinear filter for perfect crispness when scaled down to 16
         fs.mono = rl.LoadFontEx(cstring(raw_data(mono_path)), 32, nil, 0)
         rl.SetTextureFilter(fs.mono.texture, .BILINEAR)
         fs.ui = fs.mono 
@@ -32,5 +32,6 @@ font_init :: proc(fs: ^Font_State, config: ^Config) {
 }
 
 font_measure_string :: proc(fs: ^Font_State, s: string) -> f32 {
-    return rl.MeasureTextEx(fs.ui, cstring(raw_data(s)), fs.font_size, 0).x
+    c_str := strings.clone_to_cstring(s, context.temp_allocator)
+    return rl.MeasureTextEx(fs.ui, c_str, fs.font_size, 0).x
 }

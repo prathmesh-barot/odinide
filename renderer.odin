@@ -21,18 +21,18 @@ renderer_draw_editor :: proc(app: ^App, e: ^Editor_State) {
     y: f32 = rect.y - e.scroll_offset.y
     
     for line_str, i in lines {
-        // Only draw visible lines to save performance
         if y + app.font.line_height > rect.y && y < rect.y + rect.height {
             
-            // Gutter
-            gutter_text := fmt.tprintf("%d", i + 1)
-            gw := rl.MeasureTextEx(app.font.ui, cstring(raw_data(gutter_text)), app.font.font_size, 0).x
+            // Gutter text (Allocated properly as a C-string)
+            c_gutter := fmt.ctprintf("%d", i + 1)
+            gw := rl.MeasureTextEx(app.font.ui, c_gutter, app.font.font_size, 0).x
             gutter_color := i == e.cursor.line ? app.theme.text_primary : app.theme.text_muted
-            rl.DrawTextEx(app.font.ui, cstring(raw_data(gutter_text)), {rect.x + gutter_w - gw - 8, y}, app.font.font_size, 0, gutter_color)
+            rl.DrawTextEx(app.font.ui, c_gutter, {rect.x + gutter_w - gw - 8, y}, app.font.font_size, 0, gutter_color)
             
-            // Text
+            // Text line (CRITICAL FIX: Clone slice to a null-terminated C-string so it doesn't draw the whole file)
             if len(line_str) > 0 {
-                rl.DrawTextEx(app.font.mono, cstring(raw_data(line_str)), {rect.x + gutter_w, y}, app.font.font_size, 0, app.theme.text_primary)
+                c_str := strings.clone_to_cstring(line_str, context.temp_allocator)
+                rl.DrawTextEx(app.font.mono, c_str, {rect.x + gutter_w, y}, app.font.font_size, 0, app.theme.text_primary)
             }
         }
         y += app.font.line_height
@@ -49,9 +49,23 @@ renderer_draw_editor :: proc(app: ^App, e: ^Editor_State) {
     
     rl.EndScissorMode()
     
-    // Scrollbar
+    // Fully functional Scrollbar
     sb_rect := rl.Rectangle{rect.x + rect.width - 6, rect.y, 6, rect.height}
     rl.DrawRectangleRec(sb_rect, app.theme.bg_elevated)
-    thumb_h := rect.height * 0.2
-    rl.DrawRectangleRec({sb_rect.x, rect.y + 10, 6, thumb_h}, app.theme.text_disabled)
+    
+    if len(lines) > 0 {
+        visible_ratio := rect.height / (f32(len(lines)) * app.font.line_height)
+        if visible_ratio > 1.0 do visible_ratio = 1.0
+        thumb_h := rect.height * visible_ratio
+        if thumb_h < 20 do thumb_h = 20
+        
+        max_scroll := (f32(len(lines)) * app.font.line_height) - rect.height
+        if max_scroll < 0 do max_scroll = 0
+        
+        scroll_ratio: f32 = 0
+        if max_scroll > 0 do scroll_ratio = e.scroll_offset.y / max_scroll
+        
+        thumb_y := rect.y + scroll_ratio * (rect.height - thumb_h)
+        rl.DrawRectangleRec({sb_rect.x, thumb_y, 6, thumb_h}, app.theme.text_disabled)
+    }
 }

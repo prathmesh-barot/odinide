@@ -1,6 +1,7 @@
 package main
 
 import "core:os"
+import "core:strings"
 import rl "vendor:raylib"
 
 App :: struct {
@@ -66,8 +67,9 @@ app_draw :: proc(app: ^App) {
     } else {
         rl.DrawRectangleRec(app.layout.editor_area, app.theme.bg_base)
         text := "OdinIDE - Press Ctrl+N to create a file"
-        w := font_measure_string(&app.font, text)
-        rl.DrawTextEx(app.font.ui, cstring(raw_data(text)), 
+        c_text := strings.clone_to_cstring(text, context.temp_allocator)
+        w := rl.MeasureTextEx(app.font.ui, c_text, app.font.font_size, 0).x
+        rl.DrawTextEx(app.font.ui, c_text, 
             {app.layout.editor_area.x + (app.layout.editor_area.width - w)/2, app.layout.editor_area.y + app.layout.editor_area.height/2}, 
             app.font.font_size, 0, app.theme.text_muted)
     }
