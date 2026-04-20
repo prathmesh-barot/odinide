@@ -17,7 +17,7 @@ font_init :: proc(fs: ^Font_State, config: ^Config) {
     fs.line_height = fs.font_size * config.line_height_mult
     
     mono_path := "assets/fonts/JetBrainsMono-Regular.ttf"
-    ui_path   := "assets/fonts/Inter-Regular.ttf"
+    ui_path   := "assets/fonts/Geist-Regular.ttf"
     
     c_mono := strings.clone_to_cstring(mono_path, context.temp_allocator)
     
