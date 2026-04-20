@@ -34,7 +34,7 @@ renderer_draw_editor :: proc(app: ^App, e: ^Editor_State) {
     // Gutter background (subtle, slightly lighter than editor bg)
     rl.DrawRectangleRec(
         {rect.x, rect.y, gutter_w - 1, rect.height},
-        {23, 24, 38, 255})
+        app.theme.gutter_bg)
 
     // Gutter right separator
     rl.DrawLineEx(
@@ -90,23 +90,23 @@ renderer_draw_editor :: proc(app: ^App, e: ^Editor_State) {
             // ── Gutter line number ─────────────────────────────────────────
             if app.config.show_line_numbers {
                 c_num  := fmt.ctprintf("%d", i + 1)
-                num_w  := rl.MeasureTextEx(app.font.ui, c_num, app.font.font_size, 0).x
+                num_w  := rl.MeasureTextEx(app.font.ui, c_num, app.font.ui_size, 0).x
                 is_cur := i == e.cursor.line
                 gnum_col := is_cur ? app.theme.text_primary : app.theme.text_muted
                 // Vertically center within line_height
-                text_y := y + (app.font.line_height - app.font.font_size) * 0.5
-                rl.DrawTextEx(app.font.ui, c_num,
+                text_y := y + (app.font.line_height - app.font.ui_size) * 0.5
+                draw_text_ui(&app.font, c_num,
                     {rect.x + gutter_w - num_w - 12, text_y},
-                    app.font.font_size, 0, gnum_col)
+                    gnum_col, app.font.ui_size)
             }
 
             // ── Code text (Phase 1: all primary, Phase 2: tokenized) ───────
             if line_len > 0 {
                 c_line := strings.clone_to_cstring(line_str, context.temp_allocator)
                 text_y := y + (app.font.line_height - app.font.font_size) * 0.5
-                rl.DrawTextEx(app.font.mono, c_line,
+                draw_text_mono(&app.font, c_line,
                     {rect.x + gutter_w + 4, text_y},
-                    app.font.font_size, 0, app.theme.text_primary)
+                    app.theme.text_primary, app.font.font_size)
             }
         }
 
@@ -134,7 +134,7 @@ renderer_draw_editor :: proc(app: ^App, e: ^Editor_State) {
 render_line :: proc(app: ^App, x, y: f32, line_str: string, tokens: []Token) {
     if len(line_str) > 0 {
         c_line := strings.clone_to_cstring(line_str, context.temp_allocator)
-        rl.DrawTextEx(app.font.mono, c_line, {x, y}, app.font.font_size, 0, app.theme.text_primary)
+        draw_text_mono(&app.font, c_line, {x, y}, app.theme.text_primary, app.font.font_size)
     }
 }
 

@@ -55,6 +55,11 @@ input_update :: proc(app: ^App, dt: f32) {
         app.layout.sidebar_visible = !app.layout.sidebar_visible
         layout_recalculate(&app.layout, f32(app.window_width), f32(app.window_height))
     }
+    if ctrl && rl.IsKeyPressed(.COMMA) {
+        app.settings_modal_open = !app.settings_modal_open
+        app.settings_tab = 0
+        app_push_toast(app, app.settings_modal_open ? "Settings opened" : "Settings closed")
+    }
 
     // ── Sidebar resize handle (drag) ──────────────────────────────────────────
     handle_x := app.layout.activity_bar.x + app.layout.activity_bar.width
@@ -107,6 +112,9 @@ input_update :: proc(app: ^App, dt: f32) {
             app_push_toast(app, "Font size decreased")
         }
     }
+
+    // When settings modal is open, keep global shortcuts but block editor editing.
+    if app.settings_modal_open do return
 
     // ── Editor interaction (only when an editor is active) ────────────────────
     if app.active_editor < 0 || app.active_editor >= len(app.editors) do return
@@ -356,7 +364,14 @@ editor_open_file :: proc(app: ^App, path: string) {
 input_save_file :: proc(app: ^App) {
     if app.active_editor < 0 || app.active_editor >= len(app.editors) do return
     e := &app.editors[app.active_editor]
-    save_path := e.file_path != "" ? e.file_path : "untitled.odin"
+    save_path := e.file_path
+    if save_path == "" {
+        save_path = input_pick_file_path(false)
+        if save_path == "" {
+            app_push_toast(app, "Save canceled")
+            return
+        }
+    }
     content   := gap_buffer_to_string(&e.buffer, context.temp_allocator)
     err       := os.write_entire_file(save_path, transmute([]u8)content)
     if err == nil {
@@ -369,8 +384,55 @@ input_save_file :: proc(app: ^App) {
 }
 
 input_try_open_dialog :: proc(app: ^App) {
-    // rl.OpenFileDialog is absent in dev-2026-04.
-    // Use drag-and-drop (handled via rl.IsFileDropped) or click sidebar.
-    // TODO Phase 2: os/exec zenity/kdialog on Linux, GetOpenFileName on Windows.
-    app_push_toast(app, "Open dialog unavailable: use drag-and-drop or sidebar.")
+    picked := input_pick_file_path(true)
+    if picked == "" {
+        app_push_toast(app, "Open canceled")
+        return
+    }
+    editor_open_file(app, picked)
+}
+
+input_pick_file_path :: proc(open_mode: bool) -> string {
+    path := input_pick_file_path_zenity(open_mode)
+    if path != "" do return path
+    path = input_pick_file_path_kdialog(open_mode)
+    return path
+}
+
+input_pick_file_path_zenity :: proc(open_mode: bool) -> string {
+    cmd: []string
+    if open_mode {
+        cmd = []string{
+            "zenity", "--file-selection",
+            "--title", "Open Odin File",
+            "--file-filter", "*.odin",
+        }
+    } else {
+        cmd = []string{
+            "zenity", "--file-selection", "--save", "--confirm-overwrite",
+            "--title", "Save Odin File",
+            "--file-filter", "*.odin",
+        }
+    }
+
+    state, out, err_out, err := os.process_exec(os.Process_Desc{command = cmd}, context.temp_allocator)
+    defer delete(out)
+    defer delete(err_out)
+    if err != nil || !state.exited || state.exit_code != 0 || len(out) == 0 do return ""
+
+    picked := strings.trim_space(string(out))
+    if picked == "" do return ""
+    return picked
+}
+
+input_pick_file_path_kdialog :: proc(open_mode: bool) -> string {
+    cmd := []string{"kdialog", open_mode ? "--getopenfilename" : "--getsavefilename", ".", "*.odin"}
+    state, out, err_out, err := os.process_exec(os.Process_Desc{command = cmd}, context.temp_allocator)
+    defer delete(out)
+    defer delete(err_out)
+    if err != nil || !state.exited || state.exit_code != 0 || len(out) == 0 do return ""
+
+    picked := strings.trim_space(string(out))
+    if picked == "" do return ""
+    return picked
 }

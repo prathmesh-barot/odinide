@@ -28,6 +28,11 @@ Theme :: struct {
     tab_active_bg:   rl.Color,
     tab_inactive_bg: rl.Color,
     tab_active_line: rl.Color,
+
+    activity_pill_active: rl.Color,
+    activity_pill_hover:  rl.Color,
+    gutter_bg:            rl.Color,
+    file_odin_text:       rl.Color,
 }
 
 theme_odinide_dark :: proc() -> Theme {
@@ -37,9 +42,9 @@ theme_odinide_dark :: proc() -> Theme {
         bg_highlight    = {41, 43, 61, 255},      // #292B3D
         bg_active_line  = {35, 36, 55, 255},      // #232437
         border          = {46, 48, 80, 255},      // #2E3050
-        text_primary    = {192, 202, 245, 255},   // #C0CAF5
-        text_muted      = {86, 95, 137, 255},     // #565F89
-        text_disabled   = {59, 66, 97, 255},      // #3B4261
+        text_primary    = {214, 222, 255, 255},   // brighter for readability
+        text_muted      = {130, 141, 188, 255},   // higher contrast muted text
+        text_disabled   = {98, 108, 148, 255},    // still readable disabled text
         accent          = {122, 162, 247, 255},   // #7AA2F7
         accent_warm     = {255, 158, 100, 255},   // #FF9E64
 
@@ -57,5 +62,10 @@ theme_odinide_dark :: proc() -> Theme {
         tab_active_bg   = {26, 27, 38, 255},
         tab_inactive_bg = {22, 22, 30, 255},
         tab_active_line = {122, 162, 247, 255},
+
+        activity_pill_active = {122, 162, 247, 30},
+        activity_pill_hover  = {255, 255, 255, 12},
+        gutter_bg            = {23, 24, 38, 255},
+        file_odin_text       = {214, 222, 255, 245},
     }
 }

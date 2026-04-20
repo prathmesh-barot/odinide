@@ -93,8 +93,8 @@ sidebar_draw :: proc(app: ^App) {
     case .Settings: title = "SETTINGS"
     }
 
-    rl.DrawTextEx(app.font.ui, strings.clone_to_cstring(title, context.temp_allocator),
-        {rect.x + 14, rect.y + 10}, 10, 1.5, app.theme.text_muted)
+    draw_text_ui(&app.font, strings.clone_to_cstring(title, context.temp_allocator),
+        {rect.x + 14, rect.y + 10}, app.theme.text_muted, 10, 1.5)
     // Thin separator below header
     rl.DrawLineEx(
         {rect.x, rect.y + header_h},
@@ -149,10 +149,10 @@ sidebar_draw_panel_card :: proc(app: ^App, rect: rl.Rectangle, title, body: stri
     rl.DrawRectangleRounded(rect, 0.2, 6, bg)
     rl.DrawRectangleRoundedLinesEx(rect, 0.2, 6, 1, app.theme.border)
 
-    rl.DrawTextEx(app.font.ui, strings.clone_to_cstring(title, context.temp_allocator),
-        {rect.x + 10, rect.y + 8}, 11, 0, app.theme.text_primary)
-    rl.DrawTextEx(app.font.ui, strings.clone_to_cstring(body, context.temp_allocator),
-        {rect.x + 10, rect.y + 27}, 11, 0, app.theme.text_muted)
+    draw_text_ui(&app.font, strings.clone_to_cstring(title, context.temp_allocator),
+        {rect.x + 10, rect.y + 8}, app.theme.text_primary, 11)
+    draw_text_ui(&app.font, strings.clone_to_cstring(body, context.temp_allocator),
+        {rect.x + 10, rect.y + 27}, app.theme.text_muted, 11)
 }
 
 sidebar_draw_search_panel :: proc(app: ^App, body_rect: rl.Rectangle, mouse_pos: rl.Vector2) {
@@ -166,8 +166,8 @@ sidebar_draw_search_panel :: proc(app: ^App, body_rect: rl.Rectangle, mouse_pos:
         query = "Type to search symbols and text..."
     }
     q_col := app.sidebar.search_query == "" ? app.theme.text_disabled : app.theme.text_primary
-    rl.DrawTextEx(app.font.ui, strings.clone_to_cstring(query, context.temp_allocator),
-        {search_box.x + 10, search_box.y + 8}, 11, 0, q_col)
+    draw_text_ui(&app.font, strings.clone_to_cstring(query, context.temp_allocator),
+        {search_box.x + 10, search_box.y + 8}, q_col, 11)
 
     if rl.CheckCollisionPointRec(mouse_pos, search_box) && rl.IsMouseButtonPressed(.LEFT) {
         app_push_toast(app, "Search panel ready (input shortcuts coming next).")
@@ -200,8 +200,8 @@ sidebar_draw_git_panel :: proc(app: ^App, body_rect: rl.Rectangle, mouse_pos: rl
     bcol := hov ? app.theme.bg_highlight : app.theme.bg_base
     rl.DrawRectangleRounded(btn, 0.2, 6, bcol)
     rl.DrawRectangleRoundedLinesEx(btn, 0.2, 6, 1, app.theme.border)
-    rl.DrawTextEx(app.font.ui, "Refresh Status",
-        {btn.x + 10, btn.y + 7}, 11, 0, app.theme.text_primary)
+    draw_text_ui(&app.font, "Refresh Status",
+        {btn.x + 10, btn.y + 7}, app.theme.text_primary, 11)
     if hov && rl.IsMouseButtonPressed(.LEFT) {
         app_push_toast(app, "Git panel refreshed.")
     }
@@ -210,38 +210,25 @@ sidebar_draw_git_panel :: proc(app: ^App, body_rect: rl.Rectangle, mouse_pos: rl
 sidebar_draw_settings_panel :: proc(app: ^App, body_rect: rl.Rectangle, mouse_pos: rl.Vector2) {
     sidebar_draw_panel_card(
         app,
-        {body_rect.x + 10, body_rect.y + 12, body_rect.width - 20, 54},
-        "Editor Font",
-        "Use +/- buttons to change size.",
+        {body_rect.x + 10, body_rect.y + 12, body_rect.width - 20, 58},
+        "Pro Settings",
+        "Open a full settings window\nfor fonts, rendering and editor options.",
     )
-    size_text := fmt.ctprintf("Current: %.0f px", app.font.font_size)
-    rl.DrawTextEx(app.font.ui, size_text,
-        {body_rect.x + 20, body_rect.y + 40}, 11, 0, app.theme.text_primary)
 
-    minus_btn := rl.Rectangle{body_rect.x + 10, body_rect.y + 74, 34, 28}
-    plus_btn  := rl.Rectangle{body_rect.x + 50, body_rect.y + 74, 34, 28}
-
-    btns   := [2]rl.Rectangle{minus_btn, plus_btn}
-    labels := [2]string{"-", "+"}
-    for i in 0..<2 {
-        btn   := btns[i]
-        label := labels[i]
-        hov := rl.CheckCollisionPointRec(mouse_pos, btn)
-        bg  := hov ? app.theme.bg_highlight : app.theme.bg_base
-        rl.DrawRectangleRounded(btn, 0.2, 6, bg)
-        rl.DrawRectangleRoundedLinesEx(btn, 0.2, 6, 1, app.theme.border)
-        rl.DrawTextEx(app.font.ui, strings.clone_to_cstring(label, context.temp_allocator),
-            {btn.x + 12, btn.y + 6}, 14, 0, app.theme.text_primary)
+    open_btn := rl.Rectangle{body_rect.x + 10, body_rect.y + 82, body_rect.width - 20, 30}
+    hov := rl.CheckCollisionPointRec(mouse_pos, open_btn)
+    rl.DrawRectangleRounded(open_btn, 0.2, 6, hov ? app.theme.bg_highlight : app.theme.bg_base)
+    rl.DrawRectangleRoundedLinesEx(open_btn, 0.2, 6, 1, app.theme.border)
+    draw_text_ui(&app.font, "Open Settings (Ctrl+,)",
+        {open_btn.x + 10, open_btn.y + 7}, app.theme.text_primary, app.font.ui_size)
+    if hov && rl.IsMouseButtonPressed(.LEFT) {
+        app.settings_modal_open = true
+        app.settings_tab = 0
     }
 
-    if rl.CheckCollisionPointRec(mouse_pos, minus_btn) && rl.IsMouseButtonPressed(.LEFT) {
-        font_change_size(&app.font, &app.config, -1)
-        app_push_toast(app, "Font size decreased.")
-    }
-    if rl.CheckCollisionPointRec(mouse_pos, plus_btn) && rl.IsMouseButtonPressed(.LEFT) {
-        font_change_size(&app.font, &app.config, 1)
-        app_push_toast(app, "Font size increased.")
-    }
+    size_text := fmt.ctprintf("Editor %.0fpx  UI %.0fpx", app.font.font_size, app.font.ui_size)
+    draw_text_ui(&app.font, size_text,
+        {body_rect.x + 12, body_rect.y + 122}, app.theme.text_muted, app.font.ui_size - 1)
 }
 
 sidebar_draw_node :: proc(app: ^App, node: ^Tree_Node, y: ^f32, mouse_pos: rl.Vector2, new_hovered: ^string) {
@@ -313,15 +300,15 @@ sidebar_draw_node :: proc(app: ^App, node: ^Tree_Node, y: ^f32, mouse_pos: rl.Ve
     } else if node.is_dir {
         col = app.theme.text_primary
     } else if filepath.ext(node.name) == ".odin" {
-        col = {192, 202, 245, 230}    // text_primary slightly bright
+        col = app.theme.file_odin_text
     } else {
         col = app.theme.text_muted
     }
 
     c_name := strings.clone_to_cstring(node.name, context.temp_allocator)
-    rl.DrawTextEx(app.font.ui, c_name,
-        {text_x, y^ + (row_h - app.font.font_size) * 0.5},
-        app.font.font_size, 0, col)
+    draw_text_ui(&app.font, c_name,
+        {text_x, y^ + (row_h - app.font.ui_size) * 0.5},
+        col, app.font.ui_size)
 
     // ── Click handler ──────────────────────────────────────────────────────
     if is_hovered && rl.IsMouseButtonPressed(.LEFT) {
@@ -415,9 +402,9 @@ tabbar_draw :: proc(app: ^App) {
         text_col := is_active ? app.theme.text_primary : app.theme.text_muted
         label_x  := x + 14
         if e.is_modified { label_x = x + 22 }
-        rl.DrawTextEx(app.font.ui, c_name,
-            {label_x, tb.y + (tb.height - app.font.font_size) * 0.5},
-            app.font.font_size, 0, text_col)
+        draw_text_ui(&app.font, c_name,
+            {label_x, tb.y + (tb.height - app.font.ui_size) * 0.5},
+            text_col, app.font.ui_size)
 
         // Clicks
         if rl.IsMouseButtonPressed(.LEFT) && hov {
@@ -468,16 +455,16 @@ statusbar_draw :: proc(app: ^App) {
     rl.DrawCircle(i32(ox + 4), i32(sb.y + sb.height * 0.5), 4, app.theme.sb_text)
     ox += 14
 
-    rl.DrawTextEx(app.font.ui, "Odin dev-2026-04",
-        {ox, y_center}, font_sz, 0, app.theme.sb_text)
+    draw_text_ui(&app.font, "Odin dev-2026-04",
+        {ox, y_center}, app.theme.sb_text, font_sz)
     ox += rl.MeasureTextEx(app.font.ui, "Odin dev-2026-04", font_sz, 0).x + 10
 
     // Separator dot
     rl.DrawCircle(i32(ox), i32(sb.y + sb.height * 0.5), 2, app.theme.sb_text)
     ox += 10
 
-    rl.DrawTextEx(app.font.ui, "main",
-        {ox, y_center}, font_sz, 0, app.theme.sb_text)
+    draw_text_ui(&app.font, "main",
+        {ox, y_center}, app.theme.sb_text, font_sz)
 
     // Right block: cursor + encoding
     if app.active_editor >= 0 && app.active_editor < len(app.editors) {
@@ -485,8 +472,8 @@ statusbar_draw :: proc(app: ^App) {
         c_right := fmt.ctprintf("Ln %d, Col %d  |  Spaces: %d  |  UTF-8  |  LF",
             e.cursor.line + 1, e.cursor.col + 1, app.config.tab_size)
         right_w := rl.MeasureTextEx(app.font.ui, c_right, font_sz, 0).x
-        rl.DrawTextEx(app.font.ui, c_right,
+        draw_text_ui(&app.font, c_right,
             {sb.x + sb.width - right_w - 14, y_center},
-            font_sz, 0, app.theme.sb_text)
+            app.theme.sb_text, font_sz)
     }
 }
