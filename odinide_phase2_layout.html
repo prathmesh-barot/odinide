@@ -1,0 +1,227 @@
+
+<style>
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+.cur{display:inline-block;width:2px;height:13px;background:#7AA2F7;vertical-align:text-bottom;animation:blink 1.1s step-end infinite}
+.kw{color:#BB9AF7}.ty{color:#2AC3DE}.fn{color:#7AA2F7}.st{color:#9ECE6A}.op{color:#89DDFF}.cm{color:#565F89;font-style:italic}.tx{color:#C0CAF5}.nm{color:#FF9E64}
+.row{display:flex;height:19px;align-items:center}
+.row-a{display:flex;height:19px;align-items:center;background:#232437}
+.di{width:14px;flex-shrink:0;text-align:center;font-size:9px;line-height:19px}
+.ln{width:32px;flex-shrink:0;text-align:right;padding-right:6px;color:#565F89;font-size:11px;user-select:none}
+.ln-a{width:32px;flex-shrink:0;text-align:right;padding-right:6px;color:#C0CAF5;font-size:11px;user-select:none;font-weight:600}
+.sep{width:1px;background:#2E3050;flex-shrink:0;align-self:stretch}
+.cd{flex:1;padding-left:8px;white-space:pre;font-size:12.5px}
+.fi{display:inline-flex;align-items:center;justify-content:center;width:12px;height:12px;background:#BB9AF7;border-radius:2px;font-size:7px;color:#1A1B26;font-weight:700;flex-shrink:0}
+</style>
+
+<div style="display:flex;width:100%;height:520px;background:#1A1B26;border-radius:10px;overflow:hidden;border:1px solid #2E3050;font-family:'Courier New',Courier,monospace;font-size:12px;color:#C0CAF5;">
+
+  <!-- ACTIVITY BAR -->
+  <div style="width:42px;min-width:42px;background:#16161E;display:flex;flex-direction:column;align-items:center;padding:8px 0 6px;border-right:1px solid #2E3050;gap:2px;">
+    <div style="width:36px;height:36px;border-radius:6px;background:#1F2030;display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7AA2F7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7c0-1.1.9-2 2-2h4l2 2h8c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V7z"/></svg>
+      <div style="position:absolute;left:0;top:8px;width:2px;height:20px;background:#7AA2F7;border-radius:0 2px 2px 0;"></div>
+    </div>
+    <div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0.28;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C0CAF5" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </div>
+    <div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0.28;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C0CAF5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="2.5"/><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M6 8.5v7M8.5 6.5l7 5-7 6"/></svg>
+    </div>
+    <div style="flex:1;"></div>
+    <div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0.28;margin-bottom:2px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C0CAF5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.5"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div style="width:168px;min-width:168px;background:#1F2030;display:flex;flex-direction:column;border-right:1px solid #2E3050;overflow:hidden;">
+    <div style="height:26px;display:flex;align-items:center;padding:0 10px;color:#565F89;font-size:10px;letter-spacing:0.1em;border-bottom:1px solid #2E3050;flex-shrink:0;">EXPLORER</div>
+    <div style="flex:1;overflow-y:auto;padding:3px 0;color:#C0CAF5;">
+      <div style="display:flex;align-items:center;gap:4px;padding:3px 8px;cursor:pointer;font-size:11.5px;">
+        <span style="color:#565F89;font-size:8px;width:8px;">▼</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="#7AA2F7" style="flex-shrink:0;"><path d="M3 7c0-1.1.9-2 2-2h4l2 2h8c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V7z"/></svg>
+        <span style="font-weight:700;">OdinIDE</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;padding:2px 8px 2px 18px;cursor:pointer;font-size:11.5px;opacity:0.55;">
+        <span style="color:#565F89;font-size:8px;width:8px;">▶</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="#FF9E64" style="flex-shrink:0;"><path d="M3 7c0-1.1.9-2 2-2h4l2 2h8c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V7z"/></svg>
+        <span>assets</span>
+      </div>
+
+      <!-- file rows -->
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;"><span class="fi">O</span><span>app.odin</span></div>
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;"><span class="fi">O</span><span>cmd_palette.odin</span></div>
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;"><span class="fi">O</span><span>diagnostics.odin</span></div>
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;"><span class="fi">O</span><span>editor.odin</span></div>
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;"><span class="fi">O</span><span>find.odin</span></div>
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;"><span class="fi">O</span><span>font.odin</span></div>
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;"><span class="fi">O</span><span>highlighter.odin</span></div>
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;"><span class="fi">O</span><span>input.odin</span></div>
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;"><span class="fi">O</span><span>lexer.odin</span></div>
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;"><span class="fi">O</span><span>lsp.odin</span></div>
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;"><span class="fi">O</span><span>lsp_types.odin</span></div>
+      <!-- ACTIVE FILE -->
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;background:#292B3D;">
+        <span class="fi">O</span>
+        <span style="color:#7AA2F7;font-weight:700;">main.odin</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;"><span class="fi">O</span><span>renderer.odin</span></div>
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;"><span class="fi">O</span><span>theme.odin</span></div>
+      <div style="display:flex;align-items:center;gap:5px;padding:2px 8px 2px 28px;cursor:pointer;font-size:11.5px;"><span class="fi">O</span><span>undo.odin</span></div>
+    </div>
+  </div>
+
+  <!-- MAIN AREA -->
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;">
+
+    <!-- TAB BAR -->
+    <div style="height:34px;background:#16161E;display:flex;align-items:stretch;border-bottom:1px solid #2E3050;flex-shrink:0;overflow:hidden;">
+      <div style="display:flex;align-items:center;gap:5px;padding:0 10px;background:#1A1B26;border-right:1px solid #2E3050;position:relative;cursor:pointer;white-space:nowrap;">
+        <div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:#7AA2F7;"></div>
+        <span class="fi">O</span>
+        <span style="font-size:12px;color:#C0CAF5;">main.odin</span>
+        <span style="color:#3B4261;font-size:11px;">×</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;padding:0 10px;background:#16161E;border-right:1px solid #2E3050;cursor:pointer;white-space:nowrap;opacity:0.55;">
+        <span class="fi">O</span>
+        <span style="font-size:12px;color:#565F89;">editor.odin</span>
+        <span style="color:#3B4261;font-size:11px;">×</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;padding:0 10px;background:#16161E;border-right:1px solid #2E3050;cursor:pointer;white-space:nowrap;opacity:0.55;">
+        <span class="fi">O</span>
+        <span style="font-size:12px;color:#565F89;">lsp.odin</span>
+        <span style="color:#FF9E64;font-size:10px;">●</span>
+      </div>
+      <div style="display:flex;align-items:center;padding:0 10px;color:#565F89;cursor:pointer;font-size:18px;opacity:0.35;">+</div>
+      <div style="flex:1;"></div>
+    </div>
+
+    <!-- BREADCRUMB -->
+    <div style="height:22px;display:flex;align-items:center;padding:0 12px;background:#1A1B26;border-bottom:1px solid #1E1F2E;font-size:11px;color:#565F89;gap:5px;flex-shrink:0;">
+      <span>OdinIDE</span>
+      <span style="color:#3B4261;">›</span>
+      <span>main.odin</span>
+      <span style="color:#3B4261;">›</span>
+      <span style="color:#7AA2F7;">player_heal</span>
+    </div>
+
+    <!-- EDITOR + SCROLLBAR -->
+    <div style="flex:1;display:flex;overflow:hidden;position:relative;">
+
+      <!-- CODE LINES (position:relative for popup) -->
+      <div style="flex:1;min-width:0;overflow:hidden;position:relative;line-height:19px;">
+
+        <!-- L1: package main -->
+        <div class="row"><div class="di"></div><div class="ln">1</div><div class="sep"></div><div class="cd"><span class="kw">package</span> <span class="tx">main</span></div></div>
+        <!-- L2: empty -->
+        <div class="row"><div class="di"></div><div class="ln">2</div><div class="sep"></div><div class="cd"></div></div>
+        <!-- L3: import core:fmt -->
+        <div class="row"><div class="di"></div><div class="ln">3</div><div class="sep"></div><div class="cd"><span class="kw">import</span> <span class="st">"core:fmt"</span></div></div>
+        <!-- L4: import core:os  WARNING -->
+        <div class="row"><div class="di" style="color:#E0AF68;">▲</div><div class="ln">4</div><div class="sep"></div><div class="cd"><span class="kw">import</span> <span class="st">"core:os"</span></div></div>
+        <!-- L5: empty -->
+        <div class="row"><div class="di"></div><div class="ln">5</div><div class="sep"></div><div class="cd"></div></div>
+        <!-- L6: comment -->
+        <div class="row"><div class="di"></div><div class="ln">6</div><div class="sep"></div><div class="cd"><span class="cm">// Player represents a game entity</span></div></div>
+        <!-- L7: Player :: struct { -->
+        <div class="row"><div class="di"></div><div class="ln">7</div><div class="sep"></div><div class="cd"><span class="ty">Player</span> <span class="op">::</span> <span class="kw">struct</span> <span class="tx">{</span></div></div>
+        <!-- L8:     name: string, -->
+        <div class="row"><div class="di"></div><div class="ln">8</div><div class="sep"></div><div class="cd">    <span class="tx">name</span><span class="op">:</span>    <span class="ty">string</span><span class="tx">,</span></div></div>
+        <!-- L9:     health: int, -->
+        <div class="row"><div class="di"></div><div class="ln">9</div><div class="sep"></div><div class="cd">    <span class="tx">health</span><span class="op">:</span>  <span class="ty">int</span><span class="tx">,</span></div></div>
+        <!-- L10:    mana: f32, -->
+        <div class="row"><div class="di"></div><div class="ln">10</div><div class="sep"></div><div class="cd">    <span class="tx">mana</span><span class="op">:</span>    <span class="ty">f32</span><span class="tx">,</span></div></div>
+        <!-- L11: } -->
+        <div class="row"><div class="di"></div><div class="ln">11</div><div class="sep"></div><div class="cd"><span class="tx">}</span></div></div>
+        <!-- L12: empty -->
+        <div class="row"><div class="di"></div><div class="ln">12</div><div class="sep"></div><div class="cd"></div></div>
+        <!-- L13: player_heal :: proc(...) -> bool { -->
+        <div class="row"><div class="di"></div><div class="ln">13</div><div class="sep"></div><div class="cd"><span class="fn">player_heal</span> <span class="op">::</span> <span class="kw">proc</span><span class="tx">(</span><span class="tx">p</span><span class="op">: ^</span><span class="ty">Player</span><span class="tx">, </span><span class="tx">amount</span><span class="op">:</span> <span class="ty">int</span><span class="tx">) </span><span class="op">-></span> <span class="ty">bool</span> <span class="tx">{</span></div></div>
+        <!-- L14: ACTIVE LINE — fmt. + CURSOR -->
+        <div class="row-a"><div class="di"></div><div class="ln-a">14</div><div class="sep"></div><div class="cd">    <span class="fn">fmt</span><span class="op">.</span><span class="cur"></span></div></div>
+        <!-- L15:     if amount <= 0 do return false -->
+        <div class="row"><div class="di"></div><div class="ln">15</div><div class="sep"></div><div class="cd">    <span class="kw">if</span> <span class="tx">amount</span> <span class="op">&lt;=</span> <span class="nm">0</span> <span class="kw">do</span> <span class="kw">return</span> <span class="nm">false</span></div></div>
+        <!-- L16: ERROR — amunt wavy underline -->
+        <div class="row"><div class="di" style="color:#F7768E;">●</div><div class="ln">16</div><div class="sep"></div><div class="cd">    <span class="fn">fmt</span><span class="op">.</span><span class="fn">printf</span><span class="tx">(</span><span class="st">"Healed %s\n"</span><span class="tx">, </span><span class="tx">p</span><span class="op">.</span><span class="tx">name</span><span class="tx">, </span><span style="color:#C0CAF5;text-decoration:underline wavy #F7768E;text-underline-offset:2px;">amunt</span><span class="tx">)</span></div></div>
+        <!-- L17:     return true -->
+        <div class="row"><div class="di"></div><div class="ln">17</div><div class="sep"></div><div class="cd">    <span class="kw">return</span> <span class="nm">true</span></div></div>
+        <!-- L18: } -->
+        <div class="row"><div class="di"></div><div class="ln">18</div><div class="sep"></div><div class="cd"><span class="tx">}</span></div></div>
+        <!-- L19: empty -->
+        <div class="row"><div class="di"></div><div class="ln">19</div><div class="sep"></div><div class="cd"></div></div>
+        <!-- L20: main :: proc() { -->
+        <div class="row"><div class="di"></div><div class="ln">20</div><div class="sep"></div><div class="cd"><span class="fn">main</span> <span class="op">::</span> <span class="kw">proc</span><span class="tx">() {</span></div></div>
+        <!-- L21:     player := Player{ -->
+        <div class="row"><div class="di"></div><div class="ln">21</div><div class="sep"></div><div class="cd">    <span class="tx">player</span> <span class="op">:=</span> <span class="ty">Player</span><span class="tx">{</span></div></div>
+        <!-- L22:         name = "Odin", -->
+        <div class="row"><div class="di"></div><div class="ln">22</div><div class="sep"></div><div class="cd">        <span class="tx">name</span>   <span class="op">=</span> <span class="st">"Odin"</span><span class="tx">,</span></div></div>
+        <!-- L23:         health = 75, -->
+        <div class="row"><div class="di"></div><div class="ln">23</div><div class="sep"></div><div class="cd">        <span class="tx">health</span> <span class="op">=</span> <span class="nm">75</span><span class="tx">,</span></div></div>
+
+        <!-- COMPLETION POPUP (absolute, below active line 14) -->
+        <!-- L14 top = 13 * 19 = 247px. popup top = 247 + 19 = 266px -->
+        <!-- left = diag(14)+linenum(32)+sep(1)+pad(8)+4spaces(30px) = 85px -->
+        <div style="position:absolute;top:266px;left:82px;width:218px;background:#161724;border:1px solid #3B4261;border-radius:6px;overflow:hidden;z-index:20;box-shadow:none;">
+          <div style="padding:3px 8px;font-size:10px;color:#3B4261;border-bottom:1px solid #2A2B40;letter-spacing:0.03em;">fmt — OLS completions</div>
+          <div style="display:flex;align-items:center;gap:7px;padding:4px 8px;background:#292B3D;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;background:#7AA2F7;border-radius:3px;font-size:7px;color:#1A1B26;font-weight:700;flex-shrink:0;">fn</span>
+            <span style="color:#C0CAF5;font-size:12px;font-weight:600;">println</span>
+            <span style="color:#3B4261;font-size:10px;margin-left:auto;">(args: ..any)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:7px;padding:4px 8px;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;background:#7AA2F7;border-radius:3px;font-size:7px;color:#1A1B26;font-weight:700;flex-shrink:0;">fn</span>
+            <span style="color:#565F89;font-size:12px;">printf</span>
+            <span style="color:#3B4261;font-size:10px;margin-left:auto;">(fmt: string, ..)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:7px;padding:4px 8px;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;background:#7AA2F7;border-radius:3px;font-size:7px;color:#1A1B26;font-weight:700;flex-shrink:0;">fn</span>
+            <span style="color:#565F89;font-size:12px;">print</span>
+            <span style="color:#3B4261;font-size:10px;margin-left:auto;">(args: ..any)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:7px;padding:4px 8px;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;background:#7AA2F7;border-radius:3px;font-size:7px;color:#1A1B26;font-weight:700;flex-shrink:0;">fn</span>
+            <span style="color:#565F89;font-size:12px;">eprintln</span>
+            <span style="color:#3B4261;font-size:10px;margin-left:auto;">(args: ..any)</span>
+          </div>
+          <div style="padding:3px 8px;font-size:10px;color:#2E3050;border-top:1px solid #2A2B40;">↑↓ navigate &nbsp; ↵ accept &nbsp; esc dismiss</div>
+        </div>
+
+        <!-- DIAGNOSTIC HOVER (line 16 tooltip) -->
+        <!-- L16 top = 15 * 19 = 285. tooltip top = 285 - 34 = 251... let's put it below: 285+19=304 -->
+        <div style="position:absolute;top:304px;left:47px;background:#1C1D2E;border:1px solid #F7768E;border-radius:5px;padding:5px 9px;z-index:19;max-width:240px;">
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px;">
+            <span style="color:#F7768E;font-size:10px;font-weight:700;">● error</span>
+            <span style="color:#3B4261;font-size:9px;">OLS / ols</span>
+          </div>
+          <div style="color:#C0CAF5;font-size:11px;">undefined: <span style="color:#F7768E;">"amunt"</span></div>
+          <div style="color:#565F89;font-size:10px;margin-top:2px;">Did you mean <span style="color:#9ECE6A;">"amount"</span>?</div>
+        </div>
+
+      </div>
+
+      <!-- SCROLLBAR -->
+      <div style="width:8px;background:#1A1B26;flex-shrink:0;position:relative;">
+        <div style="position:absolute;top:6px;left:1px;width:6px;height:90px;background:#3B4261;border-radius:3px;"></div>
+      </div>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div style="height:24px;background:#7AA2F7;display:flex;align-items:center;padding:0 10px;color:#0F1629;font-size:11px;flex-shrink:0;justify-content:space-between;gap:4px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-weight:700;">● Odin</span>
+        <span style="opacity:0.65;">dev-2026-04</span>
+        <span>⎇ main</span>
+        <span style="background:#1e3a8a;color:#93c5fd;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;">OLS ●</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="color:#7f1d1d;font-weight:700;">● 1</span>
+        <span style="color:#451a03;font-weight:700;">▲ 1</span>
+        <span style="color:#1e2d60;">Ln 14, Col 9</span>
+        <span style="color:#1e2d60;">Spaces: 4</span>
+        <span style="color:#1e2d60;">UTF-8</span>
+        <span style="color:#1e2d60;">LF</span>
+      </div>
+    </div>
+
+  </div>
+</div>

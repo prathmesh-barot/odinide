@@ -7,6 +7,7 @@ Layout :: struct {
     activity_bar:     rl.Rectangle,
     sidebar:          rl.Rectangle,
     tab_bar:          rl.Rectangle,
+    breadcrumb_bar:   rl.Rectangle,
     editor_area:      rl.Rectangle,
     status_bar:       rl.Rectangle,
 
@@ -29,7 +30,7 @@ layout_recalculate :: proc(layout: ^Layout, w, h: f32) {
     bottom_y -= sb_height
 
     // Activity bar
-    ab_width: f32 = 48
+    ab_width: f32 = 42
     layout.activity_bar = {0, top_y, ab_width, bottom_y - top_y}
 
     // Sidebar
@@ -40,8 +41,11 @@ layout_recalculate :: proc(layout: ^Layout, w, h: f32) {
     main_x := ab_width + sb_w
     main_w := w - main_x
     
-    tab_height: f32 = 36
+    tab_height: f32 = 34
     layout.tab_bar = {main_x, top_y, main_w, tab_height}
     
-    layout.editor_area = {main_x, top_y + tab_height, main_w, bottom_y - (top_y + tab_height)}
+    crumb_h: f32 = 22
+    layout.breadcrumb_bar = {main_x, top_y + tab_height, main_w, crumb_h}
+
+    layout.editor_area = {main_x, top_y + tab_height + crumb_h, main_w, bottom_y - (top_y + tab_height + crumb_h)}
 }

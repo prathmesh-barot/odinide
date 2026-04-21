@@ -5,6 +5,7 @@ import "core:os"
 import "core:strings"
 import "core:path/filepath"
 import "core:slice"
+import "core:unicode/utf8"
 import rl "vendor:raylib"
 
 // ─── File Tree ────────────────────────────────────────────────────────────────
@@ -84,7 +85,7 @@ sidebar_draw :: proc(app: ^App) {
         1, app.theme.border)
 
     // ── Header ─────────────────────────────────────────────────────────────
-    header_h : f32 = 36
+    header_h : f32 = 26
     title := "EXPLORER"
     switch app.active_panel {
     case .Files:    title = "EXPLORER"
@@ -94,7 +95,7 @@ sidebar_draw :: proc(app: ^App) {
     }
 
     draw_text_ui(&app.font, strings.clone_to_cstring(title, context.temp_allocator),
-        {rect.x + 14, rect.y + 10}, app.theme.text_muted, 10, 1.5)
+        {rect.x + 12, rect.y + 7}, app.theme.text_muted, 10, 1.5)
     // Thin separator below header
     rl.DrawLineEx(
         {rect.x, rect.y + header_h},
@@ -260,38 +261,21 @@ sidebar_draw_node :: proc(app: ^App, node: ^Tree_Node, y: ^f32, mouse_pos: rl.Ve
 
     // ── Chevron or file icon ───────────────────────────────────────────────
     if node.is_dir {
-        // Draw proper triangle chevron
-        if node.expanded {
-            // ▼ pointing down
-            rl.DrawTriangle(
-                {cx + 4,  mid_y - 3},
-                {cx + 12, mid_y - 3},
-                {cx + 8,  mid_y + 4},
-                app.theme.text_muted)
-        } else {
-            // ▶ pointing right
-            rl.DrawTriangle(
-                {cx + 4,  mid_y - 5},
-                {cx + 4,  mid_y + 5},
-                {cx + 11, mid_y},
-                app.theme.text_muted)
-        }
+        // Use codicon chevron icons (codepoints from font loading)
+        icon_rune := node.expanded ? rune(60197) : rune(60198)  // chevron-down / chevron-right
+        buf, n := utf8.encode_rune(icon_rune)
+        c_icon := strings.clone_to_cstring(string(buf[:n]), context.temp_allocator)
+        draw_text_icon(&app.font, c_icon, {cx, mid_y - 9}, app.theme.text_muted, 16)
     } else {
-        // File icon: small rounded square
+        // Use codicon file icon with extension-based coloring
         ext := filepath.ext(node.name)
-        icon_col := ext == ".odin" ? app.theme.accent : app.theme.text_disabled
-        rl.DrawRectangleRounded(
-            {cx + 3, mid_y - 5, 10, 12},
-            0.3, 4, icon_col)
-        // Fold corner
-        corner_col := app.theme.bg_elevated
-        rl.DrawTriangle(
-            {cx + 10, mid_y - 5},
-            {cx + 13, mid_y - 2},
-            {cx + 10, mid_y - 2},
-            corner_col)
-        text_x = cx + 18
+        icon_rune := rune(60144)  // files icon
+        buf, n := utf8.encode_rune(icon_rune)
+        c_icon := strings.clone_to_cstring(string(buf[:n]), context.temp_allocator)
+        icon_col := ext == ".odin" ? app.theme.accent : app.theme.text_muted
+        draw_text_icon(&app.font, c_icon, {cx, mid_y - 9}, icon_col, 16)
     }
+    text_x = cx + 20
 
     // ── Label text ─────────────────────────────────────────────────────────
     col: rl.Color
@@ -369,31 +353,29 @@ tabbar_draw :: proc(app: ^App) {
 
         // Active tab: bright top-edge accent line (like Zed)
         if is_active {
-            rl.DrawRectangleRec({x, tb.y, tab_w, 2}, app.theme.tab_active_line)
+            rl.DrawRectangleRec({x, tb.y + tb.height - 2, tab_w, 2}, app.theme.tab_active_line)
         }
 
         // Close button rect (drawn as an X)
         close_rect := rl.Rectangle{x + tab_w - 26, tb.y + (tb.height - 18) * 0.5, 18, 18}
         close_hov  := rl.CheckCollisionPointRec(mouse_pos, close_rect)
 
-        // Modified indicator dot OR close X
+        // Modified indicator dot OR close icon
         dot_x : f32 = x + 12
         if e.is_modified && !hov && !is_active {
             // Orange unsaved dot
             rl.DrawCircle(i32(dot_x + 3), i32(tb.y + tb.height * 0.5), 4, app.theme.accent_warm)
         } else if hov || is_active {
-            // Draw × as two crossed lines
-            x1 := close_rect.x + 4
-            y1 := close_rect.y + 4
-            x2 := close_rect.x + close_rect.width - 4
-            y2 := close_rect.y + close_rect.height - 4
+            // Use codicon close icon
             x_col: rl.Color = close_hov ? app.theme.text_primary : app.theme.text_muted
             if close_hov {
                 rl.DrawRectangleRounded(close_rect, 0.4, 6,
                     {app.theme.text_muted.r, app.theme.text_muted.g, app.theme.text_muted.b, 50})
             }
-            rl.DrawLineEx({x1, y1}, {x2, y2}, 1.5, x_col)
-            rl.DrawLineEx({x2, y1}, {x1, y2}, 1.5, x_col)
+            icon_rune := rune(60022)  // close icon
+            buf, n := utf8.encode_rune(icon_rune)
+            c_close := strings.clone_to_cstring(string(buf[:n]), context.temp_allocator)
+            draw_text_icon(&app.font, c_close, {close_rect.x + 2, close_rect.y - 1}, x_col, 14)
         }
 
         // Tab label
@@ -427,11 +409,11 @@ tabbar_draw :: proc(app: ^App) {
             {app.theme.text_muted.r, app.theme.text_muted.g, app.theme.text_muted.b, 50})
         if rl.IsMouseButtonPressed(.LEFT) { editor_new_empty(app) }
     }
-    px := plus_rect.x + plus_rect.width * 0.5
-    py := plus_rect.y + plus_rect.height * 0.5
     plus_col := plus_hov ? app.theme.text_primary : app.theme.text_muted
-    rl.DrawLineEx({px - 5, py}, {px + 5, py}, 1.5, plus_col)
-    rl.DrawLineEx({px, py - 5}, {px, py + 5}, 1.5, plus_col)
+    icon_rune := rune(60010)  // new-file / add icon
+    buf, n := utf8.encode_rune(icon_rune)
+    c_plus := strings.clone_to_cstring(string(buf[:n]), context.temp_allocator)
+    draw_text_icon(&app.font, c_plus, {plus_rect.x + 3, plus_rect.y - 1}, plus_col, 16)
 }
 
 // ─── Status Bar ───────────────────────────────────────────────────────────────

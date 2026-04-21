@@ -2,6 +2,8 @@ package main
 
 import "core:fmt"
 import "core:strings"
+import "core:unicode/utf8"
+import "core:path/filepath"
 import rl "vendor:raylib"
 
 App :: struct {
@@ -18,6 +20,7 @@ App :: struct {
     editors:        [dynamic]Editor_State,
     active_editor:  int,
     statusbar:      Status_Bar,
+    highlighter:    Highlighter,
 
     ols:            OLS_State,
     should_quit:    bool,
@@ -36,10 +39,19 @@ App :: struct {
     settings_tab:        int,
     code_font_smooth:    bool,
     ui_font_soft:        bool,
+
+    completion: Completion_UI,
+    ctrl_k_armed: bool,
+    ctrl_k_time:  f64,
+
+    diagnostics: Diagnostics,
+    find:        Find_State,
+    palette:     Command_Palette,
 }
 
 app_init :: proc(app: ^App) {
     app.config = config_default()
+    config_load(&app.config)
     app.theme  = theme_odinide_dark()
 
     font_init(&app.font, &app.config)
@@ -54,12 +66,32 @@ app_init :: proc(app: ^App) {
     app.active_panel  = .Files
     app.code_font_smooth = false
     app.ui_font_soft     = true
+    app.highlighter.full_dirty = true
 
     ols_start(&app.ols, ".")
+
+    app.completion = Completion_UI{}
+    diagnostics_init(&app.diagnostics)
+    find_init(&app.find)
+    command_palette_init(&app.palette)
 }
 
 app_update :: proc(app: ^App, dt: f32) {
     input_update(app, dt)
+
+    // Debounced didChange to OLS (avoid sending on every keystroke).
+    if app.ols.initialized {
+        now := rl.GetTime()
+        for &e in app.editors {
+            if e.file_path == "" do continue
+            if e.lsp_dirty && (now - e.last_edit_time) > 0.30 {
+                _ = ols_did_change(&app.ols, &e)
+            }
+        }
+    }
+
+    // Poll OLS (LSP) once per frame (non-blocking).
+    ols_poll(&app.ols, app)
 
     if app.toast_timer > 0 {
         app.toast_timer -= dt
@@ -69,10 +101,6 @@ app_update :: proc(app: ^App, dt: f32) {
         }
     }
 
-    if app.active_editor >= 0 && app.active_editor < len(app.editors) {
-        e := &app.editors[app.active_editor]
-        e.scroll_offset.y = rl.Lerp(e.scroll_offset.y, e.target_scroll_y, dt * 18.0)
-    }
 }
 
 app_draw :: proc(app: ^App) {
@@ -90,7 +118,9 @@ app_draw :: proc(app: ^App) {
 
         // Tab actions can change editor count/index in the same frame.
         if len(app.editors) > 0 && app.active_editor >= 0 && app.active_editor < len(app.editors) {
+            _draw_breadcrumb(app, &app.editors[app.active_editor])
             renderer_draw_editor(app, &app.editors[app.active_editor])
+            find_draw(app)
         } else {
             _draw_welcome(app)
         }
@@ -109,17 +139,106 @@ app_draw :: proc(app: ^App) {
     if app.settings_modal_open {
         _draw_settings_modal(app)
     }
+
+    command_palette_draw(app)
 }
 
 app_destroy :: proc(app: ^App) {
     for &e in app.editors {
         delete(e.buffer.data)
-        if e.has_undo { delete(e.undo_entry.content) }
+        undo_clear(&e.undo_stack)
     }
     delete(app.editors)
+    for lt in app.highlighter.lines {
+        if lt.tokens != nil do delete(lt.tokens)
+    }
+    delete(app.highlighter.lines)
+    diagnostics_destroy(&app.diagnostics)
+    find_destroy(&app.find)
+    command_palette_destroy(&app.palette)
+    config_save(&app.config)
     rl.UnloadFont(app.font.mono)
-    rl.UnloadFont(app.font.ui)
+    if app.font.ui.texture.id != app.font.mono.texture.id {
+        rl.UnloadFont(app.font.ui)
+    }
+    if app.font.icons.texture.id != app.font.ui.texture.id &&
+       app.font.icons.texture.id != app.font.mono.texture.id {
+        rl.UnloadFont(app.font.icons)
+    }
     ols_stop(&app.ols)
+}
+
+// ─── Breadcrumb ───────────────────────────────────────────────────────────────
+
+Completion_Item :: struct {
+    kind:    string,
+    label:   string,
+    detail:  string,
+    insert:  string,
+}
+
+Completion_UI :: struct {
+    open:        bool,
+    selected:    int,
+    anchor_line: int,
+    anchor_col:  int,
+    trigger_pos: int,   // byte position in buffer where replacement starts
+    uri:         string,
+    title:       string,
+    items:       [dynamic]Completion_Item,
+}
+
+_draw_breadcrumb :: proc(app: ^App, e: ^Editor_State) {
+    bc := app.layout.breadcrumb_bar
+    rl.DrawRectangleRec(bc, app.theme.bg_base)
+    // subtle bottom divider (slightly darker)
+    rl.DrawLineEx({bc.x, bc.y + bc.height - 1}, {bc.x + bc.width, bc.y + bc.height - 1}, 1,
+        {app.theme.border.r, app.theme.border.g, app.theme.border.b, 120})
+
+    // Workspace name from sidebar root
+    ws := app.sidebar.root.name
+    file := e.file_path != "" ? filepath.base(e.file_path) : "Untitled"
+    sym  := _breadcrumb_symbol_from_cursor(app, e)
+
+    x := bc.x + 12
+    y := bc.y + (bc.height - 11) * 0.5
+
+    sep := "›"
+    draw_text_ui(&app.font, strings.clone_to_cstring(ws, context.temp_allocator), {x, y}, app.theme.text_muted, 11)
+    x += rl.MeasureTextEx(app.font.ui, strings.clone_to_cstring(ws, context.temp_allocator), 11, 0).x + 8
+    draw_text_ui(&app.font, strings.clone_to_cstring(sep, context.temp_allocator), {x, y}, app.theme.border, 11)
+    x += 10
+    draw_text_ui(&app.font, strings.clone_to_cstring(file, context.temp_allocator), {x, y}, app.theme.text_muted, 11)
+    x += rl.MeasureTextEx(app.font.ui, strings.clone_to_cstring(file, context.temp_allocator), 11, 0).x + 8
+
+    if sym != "" {
+        draw_text_ui(&app.font, strings.clone_to_cstring(sep, context.temp_allocator), {x, y}, app.theme.border, 11)
+        x += 10
+        draw_text_ui(&app.font, strings.clone_to_cstring(sym, context.temp_allocator), {x, y}, app.theme.accent, 11)
+    }
+}
+
+_breadcrumb_symbol_from_cursor :: proc(app: ^App, e: ^Editor_State) -> string {
+    content := gap_buffer_to_string(&e.buffer, context.temp_allocator)
+    lines   := strings.split_lines(content, context.temp_allocator)
+    if e.cursor.line < 0 || e.cursor.line >= len(lines) do return ""
+
+    // Scan upwards for `name :: proc` or `name :: struct` etc. Keep it simple and stable.
+    for i := e.cursor.line; i >= 0; i -= 1 {
+        s := strings.trim_space(lines[i])
+        if s == "" || strings.has_prefix(s, "//") do continue
+
+        // Find token before `::`
+        idx := strings.index(s, "::")
+        if idx < 0 do continue
+        left := strings.trim_space(s[:idx])
+        if left == "" do continue
+        // Only keep the identifier chunk (no spaces)
+        sp := strings.index(left, " ")
+        if sp >= 0 do left = left[:sp]
+        return left
+    }
+    return ""
 }
 
 // ─── Activity Bar ─────────────────────────────────────────────────────────────
@@ -134,11 +253,15 @@ _draw_activity_bar :: proc(app: ^App) {
         {ab.x + ab.width, ab.y + ab.height},
         1, app.theme.border)
 
-    icon_sz   : f32 = 36
-    icon_gap  : f32 = 4
-    top_start : f32 = 12
+    icon_sz   : f32 = 34
+    icon_gap  : f32 = 6
+    top_start : f32 = 10
 
     mouse_pos := rl.GetMousePosition()
+
+    // Codicon glyphs from mapping.json:
+    // files 60144, search 60013, source-control 60008, extensions 60134, gear 60152
+    icons := [4]rune{rune(60144), rune(60013), rune(60008), rune(60134)}
 
     for icon_i in 0..<4 {
         ix  := ab.x + (ab.width - icon_sz) * 0.5
@@ -148,12 +271,10 @@ _draw_activity_bar :: proc(app: ^App) {
         is_active := app.active_panel == Active_Panel(icon_i) && app.layout.sidebar_visible
         hov       := rl.CheckCollisionPointRec(mouse_pos, ir)
 
-        // Active left accent bar
         if is_active {
             rl.DrawRectangleRec({ab.x, iy + 4, 2, icon_sz - 8}, app.theme.accent)
         }
 
-        // Hover / active background pill
         if is_active || hov {
             pill_col := is_active ? app.theme.activity_pill_active : app.theme.activity_pill_hover
             rl.DrawRectangleRounded(
@@ -162,67 +283,29 @@ _draw_activity_bar :: proc(app: ^App) {
         }
 
         col := is_active ? app.theme.accent : (hov ? app.theme.text_primary : app.theme.text_muted)
-        cx  := ix + icon_sz * 0.5
-        cy  := iy + icon_sz * 0.5
+        icon_txt := _icon_cstring(icons[icon_i])
+        draw_text_icon(&app.font, icon_txt, {ix + 8, iy + 7}, col, 17)
+    }
 
-        switch icon_i {
-        case 0: _draw_icon_files(cx, cy, col)
-        case 1: _draw_icon_search(cx, cy, col)
-        case 2: _draw_icon_git(cx, cy, col)
-        case 3: _draw_icon_settings(cx, cy, col)
-        }
+    // Bottom settings button (mock-style)
+    bx := ab.x + (ab.width - icon_sz) * 0.5
+    by := ab.y + ab.height - icon_sz - 10
+    br := rl.Rectangle{bx, by, icon_sz, icon_sz}
+    bh := rl.CheckCollisionPointRec(mouse_pos, br)
+    if bh {
+        rl.DrawRectangleRounded({bx + 3, by + 3, icon_sz - 6, icon_sz - 6}, 0.35, 6, app.theme.activity_pill_hover)
+    }
+    settings_icon := _icon_cstring(rune(60152))
+    draw_text_icon(&app.font, settings_icon, {bx + 8, by + 7}, bh ? app.theme.text_primary : app.theme.text_muted, 17)
+    if bh && rl.IsMouseButtonPressed(.LEFT) {
+        app.settings_modal_open = true
+        app.settings_tab = 0
     }
 }
 
-// ── Icon: Files (folder) ──────────────────────────────────────────────────────
-_draw_icon_files :: proc(cx, cy: f32, col: rl.Color) {
-    // Tab portion (top-left)
-    rl.DrawRectangleRounded({cx - 9, cy - 7, 8, 4}, 0.4, 4, col)
-    // Folder body
-    rl.DrawRectangleRounded({cx - 9, cy - 5, 18, 12}, 0.25, 4, col)
-}
-
-// ── Icon: Search (magnifier) ──────────────────────────────────────────────────
-_draw_icon_search :: proc(cx, cy: f32, col: rl.Color) {
-    // Outer ring
-    rl.DrawRing({cx - 2, cy - 2}, 5, 7.5, 0, 360, 20, col)
-    // Handle
-    rl.DrawLineEx({cx + 3.5, cy + 3.5}, {cx + 9, cy + 9}, 2.5, col)
-}
-
-// ── Icon: Git (branch) ────────────────────────────────────────────────────────
-_draw_icon_git :: proc(cx, cy: f32, col: rl.Color) {
-    // Main commit (top)
-    rl.DrawCircle(i32(cx - 4), i32(cy - 6), 3, col)
-    // Branch commit (right)
-    rl.DrawCircle(i32(cx + 5), i32(cy),     3, col)
-    // Trunk commit (bottom)
-    rl.DrawCircle(i32(cx - 4), i32(cy + 7), 3, col)
-    // Trunk line
-    rl.DrawLineEx({cx - 4, cy - 3}, {cx - 4, cy + 4}, 2, col)
-    // Branch curve (approximate with two lines)
-    rl.DrawLineEx({cx - 4, cy - 4}, {cx + 5, cy - 2}, 2, col)
-    rl.DrawLineEx({cx + 5, cy - 2}, {cx + 5, cy - 1}, 2, col)
-}
-
-// ── Icon: Settings (gear) ────────────────────────────────────────────────────
-_draw_icon_settings :: proc(cx, cy: f32, col: rl.Color) {
-    // Outer ring
-    rl.DrawRing({cx, cy}, 5, 8.5, 0, 360, 24, col)
-    // Inner fill circle
-    rl.DrawCircle(i32(cx), i32(cy), 3.5, col)
-    // 8 teeth: 4 axis-aligned rects + 4 diagonal lines
-    // Top / Bottom / Left / Right
-    rl.DrawRectangle(i32(cx - 1.5), i32(cy - 12), 3, 4, col)
-    rl.DrawRectangle(i32(cx - 1.5), i32(cy + 8),  3, 4, col)
-    rl.DrawRectangle(i32(cx - 12),  i32(cy - 1.5), 4, 3, col)
-    rl.DrawRectangle(i32(cx + 8),   i32(cy - 1.5), 4, 3, col)
-    // Diagonal (NE, NW, SE, SW) as thick lines from ring to beyond
-    d : f32 = 7.5
-    rl.DrawLineEx({cx + d, cy - d}, {cx + d + 2.5, cy - d - 2.5}, 2.5, col)
-    rl.DrawLineEx({cx - d, cy - d}, {cx - d - 2.5, cy - d - 2.5}, 2.5, col)
-    rl.DrawLineEx({cx + d, cy + d}, {cx + d + 2.5, cy + d + 2.5}, 2.5, col)
-    rl.DrawLineEx({cx - d, cy + d}, {cx - d - 2.5, cy + d + 2.5}, 2.5, col)
+_icon_cstring :: proc(r: rune) -> cstring {
+    buf, n := utf8.encode_rune(r)
+    return strings.clone_to_cstring(string(buf[:n]), context.temp_allocator)
 }
 
 // ─── Welcome / Empty State ────────────────────────────────────────────────────

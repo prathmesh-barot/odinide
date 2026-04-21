@@ -60,6 +60,9 @@ input_update :: proc(app: ^App, dt: f32) {
         app.settings_tab = 0
         app_push_toast(app, app.settings_modal_open ? "Settings opened" : "Settings closed")
     }
+    if ctrl && rl.IsKeyPressed(.P) {
+        command_palette_toggle(app)
+    }
 
     // ── Sidebar resize handle (drag) ──────────────────────────────────────────
     handle_x := app.layout.activity_bar.x + app.layout.activity_bar.width
@@ -101,6 +104,8 @@ input_update :: proc(app: ^App, dt: f32) {
         }
         if rl.IsKeyPressed(.O) { input_try_open_dialog(app) }
         if rl.IsKeyPressed(.S) { input_save_file(app) }
+        if rl.IsKeyPressed(.F) { find_open(app, false) }
+        if rl.IsKeyPressed(.H) { find_open(app, true) }
 
         // Font size
         if rl.IsKeyPressed(.EQUAL) || rl.IsKeyPressed(.KP_ADD) {
@@ -116,9 +121,63 @@ input_update :: proc(app: ^App, dt: f32) {
     // When settings modal is open, keep global shortcuts but block editor editing.
     if app.settings_modal_open do return
 
+    if app.palette.visible {
+        command_palette_handle_input(app)
+        return
+    }
+
+    // Find bar captures input while visible.
+    if app.find.visible {
+        find_handle_input(app)
+        return
+    }
+
     // ── Editor interaction (only when an editor is active) ────────────────────
     if app.active_editor < 0 || app.active_editor >= len(app.editors) do return
     e := &app.editors[app.active_editor]
+    cursor_moved := false
+
+    // ── Hover chord (Ctrl+K, Ctrl+I) ──────────────────────────────────────────
+    if ctrl && rl.IsKeyPressed(.K) {
+        app.ctrl_k_armed = true
+        app.ctrl_k_time  = rl.GetTime()
+    }
+    if app.ctrl_k_armed && (rl.GetTime() - app.ctrl_k_time) > 1.0 {
+        app.ctrl_k_armed = false
+    }
+    if ctrl && rl.IsKeyPressed(.I) && app.ctrl_k_armed {
+        app.ctrl_k_armed = false
+        if app.ols.initialized {
+            _ = ols_request_hover(&app.ols, e)
+        }
+    }
+
+    // ── Completion popup key handling ─────────────────────────────────────────
+    if app.completion.open {
+        if rl.IsKeyPressed(.ESCAPE) {
+            _completion_close(app)
+        } else {
+            if rl.IsKeyPressed(.UP) {
+                app.completion.selected -= 1
+                if app.completion.selected < 0 do app.completion.selected = len(app.completion.items) - 1
+            }
+            if rl.IsKeyPressed(.DOWN) {
+                app.completion.selected = (app.completion.selected + 1) % len(app.completion.items)
+            }
+            if rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.TAB) {
+                _completion_accept(app, e)
+                highlighter_mark_dirty(&app.highlighter, e.cursor.line)
+                app.cursor_blink_timer = 0
+                cursor_moved = true
+            }
+        }
+        // While completion is open, don't process typing/navigation that would desync UI.
+        // (Mouse selection + scroll still work below.)
+    }
+
+    if rl.IsKeyPressed(.ESCAPE) && app.ols.hover_visible {
+        app.ols.hover_visible = false
+    }
 
     // ── Clipboard ─────────────────────────────────────────────────────────────
     if ctrl {
@@ -133,18 +192,28 @@ input_update :: proc(app: ^App, dt: f32) {
             rl.SetClipboardText(c_text)
             editor_delete_selection(e)
             app.cursor_blink_timer = 0
+            cursor_moved = true
         }
         if rl.IsKeyPressed(.V) {
             c_text := rl.GetClipboardText()
             if c_text != nil {
                 text := string(c_text)
-                editor_snapshot_undo(e)
-                editor_delete_selection(e)
-                gap_buffer_insert(&e.buffer, e.cursor.pos, text)
+                if editor_has_selection(e) {
+                    start, end := editor_get_selection_range(e)
+                    deleted := gap_buffer_to_string(&e.buffer, context.temp_allocator)[start:end]
+                    _push_delete_undo(e, start, deleted, e.cursor.pos, start)
+                    editor_delete_selection(e)
+                }
+                before := e.cursor.pos
+                gap_buffer_insert(&e.buffer, before, text)
                 e.cursor.pos += len(text)
+                _push_insert_undo(e, before, text, before, e.cursor.pos)
+                e.last_edit_time = rl.GetTime()
                 editor_sync_line_col(e)
                 e.is_modified = true
+                highlighter_mark_dirty(&app.highlighter, e.cursor.line)
                 app.cursor_blink_timer = 0
+                cursor_moved = true
             }
         }
         if rl.IsKeyPressed(.A) {
@@ -153,24 +222,49 @@ input_update :: proc(app: ^App, dt: f32) {
             e.cursor.pos       = e.buffer.length
             editor_sync_line_col(e)
             app.cursor_blink_timer = 0
+            cursor_moved = true
         }
         if rl.IsKeyPressed(.Z) {
-            editor_undo(e)
+            if shift {
+                redo_do(&e.undo_stack, e)
+            } else {
+                undo_do(&e.undo_stack, e)
+            }
+            highlighter_mark_dirty(&app.highlighter, e.cursor.line)
             app.cursor_blink_timer = 0
+            cursor_moved = true
+        }
+        if rl.IsKeyPressed(.Y) {
+            redo_do(&e.undo_stack, e)
+            highlighter_mark_dirty(&app.highlighter, e.cursor.line)
+            app.cursor_blink_timer = 0
+            cursor_moved = true
         }
     }
 
     // ── Mouse interaction ──────────────────────────────────────────────────────
-    input_handle_mouse(app, e, shift)
+    cursor_moved = cursor_moved || input_handle_mouse(app, e, shift)
 
     // ── Character input (non-ctrl)  ── DO NOT move GetCharPressed above ───────
     if !ctrl {
         ch := rl.GetCharPressed()
         for ch > 0 {
+            if app.completion.open {
+                // If user types while completion is open, dismiss it (mock-like).
+                _completion_close(app)
+            }
+            if app.ols.hover_visible {
+                app.ols.hover_visible = false
+            }
             editor_insert_char(e, ch)
             editor_sync_line_col(e)
             e.cursor.sticky_col    = e.cursor.col
+            highlighter_mark_dirty(&app.highlighter, e.cursor.line)
             app.cursor_blink_timer = 0  // reset blink on every char typed
+            cursor_moved = true
+            if ch == '.' && app.ols.initialized {
+                _ = ols_request_completion(&app.ols, e)
+            }
             ch = rl.GetCharPressed()
         }
     }
@@ -179,20 +273,41 @@ input_update :: proc(app: ^App, dt: f32) {
     if rl.IsKeyPressed(.BACKSPACE) || rl.IsKeyPressedRepeat(.BACKSPACE) {
         editor_delete_char_backward(e)
         editor_sync_line_col(e)
+        highlighter_mark_dirty(&app.highlighter, e.cursor.line)
         app.cursor_blink_timer = 0
+        cursor_moved = true
     }
     if rl.IsKeyPressed(.DELETE) || rl.IsKeyPressedRepeat(.DELETE) {
         editor_delete_char_forward(e)
         editor_sync_line_col(e)
+        highlighter_mark_dirty(&app.highlighter, e.cursor.line)
         app.cursor_blink_timer = 0
+        cursor_moved = true
     }
     if rl.IsKeyPressed(.ENTER) || rl.IsKeyPressedRepeat(.ENTER) {
+        if app.completion.open {
+            // handled above
+        }
         editor_insert_newline(e)
+        highlighter_mark_dirty(&app.highlighter, e.cursor.line)
         app.cursor_blink_timer = 0
+        cursor_moved = true
     }
     if rl.IsKeyPressed(.TAB) && !ctrl {
+        if app.completion.open {
+            // handled above
+        }
         editor_handle_tab(e, &app.config)
+        highlighter_mark_dirty(&app.highlighter, e.cursor.line)
         app.cursor_blink_timer = 0
+        cursor_moved = true
+    }
+
+    // ── Invoke completion (OLS) ───────────────────────────────────────────────
+    if ctrl && rl.IsKeyPressed(.SPACE) {
+        if app.ols.initialized {
+            _ = ols_request_completion(&app.ols, e)
+        }
     }
 
     // ── Navigation ─────────────────────────────────────────────────────────────
@@ -213,58 +328,87 @@ input_update :: proc(app: ^App, dt: f32) {
 
     if rl.IsKeyPressed(.LEFT) || rl.IsKeyPressedRepeat(.LEFT) {
         if ctrl { _mv(app, e, .Word_Left,  shift) } else { _mv(app, e, .Left,  shift) }
+        cursor_moved = true
     }
     if rl.IsKeyPressed(.RIGHT) || rl.IsKeyPressedRepeat(.RIGHT) {
         if ctrl { _mv(app, e, .Word_Right, shift) } else { _mv(app, e, .Right, shift) }
+        cursor_moved = true
     }
     if rl.IsKeyPressed(.UP) || rl.IsKeyPressedRepeat(.UP) {
         _mv(app, e, .Up, shift)
+        cursor_moved = true
     }
     if rl.IsKeyPressed(.DOWN) || rl.IsKeyPressedRepeat(.DOWN) {
         _mv(app, e, .Down, shift)
+        cursor_moved = true
     }
     if rl.IsKeyPressed(.HOME) {
         if ctrl { _mv(app, e, .File_Start, shift) } else { _mv(app, e, .Line_Start, shift) }
+        cursor_moved = true
     }
     if rl.IsKeyPressed(.END) {
         if ctrl { _mv(app, e, .File_End, shift) } else { _mv(app, e, .Line_End, shift) }
+        cursor_moved = true
     }
 
     // ── Scroll wheel ────────────────────────────────────────────────────────────
+    content := gap_buffer_to_string(&e.buffer, context.temp_allocator)
+    lines := strings.split_lines(content, context.temp_allocator)
+    total_h := f32(max(len(lines), 1)) * app.font.line_height
+    view_h := app.layout.editor_area.height
+    max_scroll := max(f32(0), total_h - view_h)
+
     if rl.CheckCollisionPointRec(mouse_pos, app.layout.editor_area) {
         wheel := rl.GetMouseWheelMove()
         if wheel != 0 {
             e.target_scroll_y -= wheel * app.font.line_height * app.config.scroll_speed
-            if e.target_scroll_y < 0 do e.target_scroll_y = 0
+            e.target_scroll_y = clamp(e.target_scroll_y, 0, max_scroll)
         }
     }
 
-    // Smooth scroll
-    e.scroll_offset.y += (e.target_scroll_y - e.scroll_offset.y) * 15.0 * dt
+    // Smooth scroll - reduced interpolation factor to prevent bounce
+    smooth_factor := 8.0 * dt  // Reduced from 15.0 for less bounce
+    e.scroll_offset.y += (e.target_scroll_y - e.scroll_offset.y) * smooth_factor
+    
+    // Ensure we never overshoot the target to prevent bounce
+    if abs(e.target_scroll_y - e.scroll_offset.y) < 0.1 {
+        e.scroll_offset.y = e.target_scroll_y
+    }
+    
+    e.scroll_offset.y = clamp(e.scroll_offset.y, 0, max_scroll)
+    e.target_scroll_y = clamp(e.target_scroll_y, 0, max_scroll)
 
-    // Auto-scroll cursor into view after movement
-    editor_scroll_to_cursor(e, app.layout.editor_area, &app.font)
+    // Auto-scroll cursor into view only when the cursor changed this frame.
+    // Otherwise free scrolling would "bounce" back to the cursor.
+    if cursor_moved {
+        editor_scroll_to_cursor(e, app.layout.editor_area, &app.font)
+        e.target_scroll_y = clamp(e.target_scroll_y, 0, max_scroll)
+    }
 }
 
 // ─── Mouse handling ───────────────────────────────────────────────────────────
 
-input_handle_mouse :: proc(app: ^App, e: ^Editor_State, shift: bool) {
+input_handle_mouse :: proc(app: ^App, e: ^Editor_State, shift: bool) -> bool {
     mouse_pos := rl.GetMousePosition()
 
-    // Text X start must MATCH renderer_draw_editor exactly:
-    //   gutter_w = digits * char_width + 28
-    //   text_x   = rect.x + gutter_w + 4  (same +4 offset as renderer)
-    digit_count := count_digits(max(1, gap_buffer_line_count(&e.buffer)))
-    gutter_w    := f32(digit_count) * app.font.char_width + 28
-    text_x_off  := gutter_w + 4   // == renderer's "rect.x + gutter_w + 4"
+    // Text X start must MATCH renderer_draw_editor exactly (Phase-2 mock layout):
+    //   gutter = diag(14) + linenum(32) + sep(1)
+    //   code_x = rect.x + gutter + pad(8)
+    diag_w : f32 = 14
+    ln_w   : f32 = app.config.show_line_numbers ? 32 : 0
+    sep_w  : f32 = 1
+    code_pad : f32 = 8
+    text_x_off := diag_w + ln_w + sep_w + code_pad
 
     in_editor := rl.CheckCollisionPointRec(mouse_pos, app.layout.editor_area)
     in_tabbar := rl.CheckCollisionPointRec(mouse_pos, app.layout.tab_bar)
+    cursor_moved := false
 
     if rl.IsMouseButtonPressed(.LEFT) {
-        if in_tabbar do return  // tab bar handles its own clicks in tabbar_draw
+        if in_tabbar do return false  // tab bar handles its own clicks in tabbar_draw
 
         if in_editor {
+            if app.completion.open { _completion_close(app) }
             rel_x := mouse_pos.x - app.layout.editor_area.x - text_x_off
             rel_y := mouse_pos.y - app.layout.editor_area.y + e.scroll_offset.y
 
@@ -282,6 +426,7 @@ input_handle_mouse :: proc(app: ^App, e: ^Editor_State, shift: bool) {
             e.cursor.sticky_col    = e.cursor.col
             app.mouse_selecting    = true
             app.cursor_blink_timer = 0
+            cursor_moved = true
         }
     }
 
@@ -296,9 +441,51 @@ input_handle_mouse :: proc(app: ^App, e: ^Editor_State, shift: bool) {
         t_col  := max(0, int((rel_x + app.font.char_width * 0.5) / app.font.char_width))
         t_line := max(0, int(rel_y / app.font.line_height))
         editor_set_pos_from_line_col(e, t_line, t_col)
+        cursor_moved = true
     }
 
     if rl.IsMouseButtonReleased(.LEFT) { app.mouse_selecting = false }
+    return cursor_moved
+}
+
+// ─── Completion UI helpers (OLS-driven) ───────────────────────────────────────
+
+_completion_close :: proc(app: ^App) {
+    app.completion.open = false
+    clear(&app.completion.items)
+    app.completion.selected = 0
+    app.completion.trigger_pos = 0
+    app.completion.uri = ""
+}
+
+_completion_accept :: proc(app: ^App, e: ^Editor_State) {
+    if !app.completion.open || len(app.completion.items) == 0 do return
+    idx := clamp(app.completion.selected, 0, len(app.completion.items) - 1)
+    ins := app.completion.items[idx].insert
+
+    // Replace from trigger_pos..cursor.pos with insert text.
+    start := clamp(app.completion.trigger_pos, 0, e.buffer.length)
+    end   := clamp(e.cursor.pos, 0, e.buffer.length)
+    if end < start { start, end = end, start }
+
+    if end > start {
+        content := gap_buffer_to_string(&e.buffer, context.temp_allocator)
+        deleted := content[start:end]
+        _push_delete_undo(e, start, deleted, e.cursor.pos, start)
+        gap_buffer_delete(&e.buffer, start, end - start)
+        e.cursor.pos = start
+    }
+
+    before := e.cursor.pos
+    gap_buffer_insert(&e.buffer, before, ins)
+    e.cursor.pos += len(ins)
+    _push_insert_undo(e, before, ins, before, e.cursor.pos)
+    editor_sync_line_col(e)
+    e.cursor.sticky_col = e.cursor.col
+    e.is_modified = true
+    e.last_edit_time = rl.GetTime()
+    e.lsp_dirty = true
+    _completion_close(app)
 }
 
 // ─── Tab close helper (used by both Ctrl+W and the tab bar X button) ──────────
@@ -308,8 +495,11 @@ _close_tab :: proc(app: ^App, idx: int) {
 
     // Free owned buffer/undo data for the tab being closed.
     closing := app.editors[idx]
+    if app.ols.initialized && closing.file_path != "" {
+        _ = ols_did_close(&app.ols, &closing)
+    }
     delete(closing.buffer.data)
-    if closing.has_undo { delete(closing.undo_entry.content) }
+    undo_clear(&closing.undo_stack)
 
     prev_active := app.active_editor
     ordered_remove(&app.editors, idx)
@@ -333,8 +523,11 @@ _close_tab :: proc(app: ^App, idx: int) {
 editor_new_empty :: proc(app: ^App) {
     new_e: Editor_State
     gap_buffer_init(&new_e.buffer, 4096)
+    new_e.lsp_version = 0
+    new_e.lsp_dirty   = false
     append(&app.editors, new_e)
     app.active_editor = len(app.editors) - 1
+    app.highlighter.full_dirty = true
 }
 
 editor_open_file :: proc(app: ^App, path: string) {
@@ -355,10 +548,17 @@ editor_open_file :: proc(app: ^App, path: string) {
         gap_buffer_insert(&e.buffer, 0, string(bytes))
     }
     e.file_path = strings.clone(path, context.allocator)
+    e.lsp_version = 0
+    e.lsp_dirty   = false
     append(&app.editors, e)
     app.active_editor = len(app.editors) - 1
     editor_sync_line_col(&app.editors[app.active_editor])
+    app.highlighter.full_dirty = true
     app_push_toast(app, "Opened file")
+
+    if app.ols.initialized {
+        _ = ols_did_open(&app.ols, &app.editors[app.active_editor])
+    }
 }
 
 input_save_file :: proc(app: ^App) {
@@ -378,6 +578,9 @@ input_save_file :: proc(app: ^App) {
         e.file_path   = save_path
         e.is_modified = false
         app_push_toast(app, "Saved file")
+        if app.ols.initialized {
+            _ = ols_did_save(&app.ols, e)
+        }
     } else {
         app_push_toast(app, "Save failed")
     }

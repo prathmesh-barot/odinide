@@ -26,6 +26,6 @@ config_default :: proc() -> Config {
         line_height_mult  = 1.45,
         cursor_blink_ms   = 500,
         scroll_speed      = 3,
-        sidebar_width     = 240,
+        sidebar_width     = 168,
     }
 }

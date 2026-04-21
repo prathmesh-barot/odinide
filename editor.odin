@@ -156,13 +156,6 @@ Cursor_Dir :: enum {
     Word_Right,
 }
 
-// ─── Undo ─────────────────────────────────────────────────────────────────────
-
-Undo_Entry :: struct {
-    content:    string,   // full buffer snapshot (simple single-level undo)
-    cursor_pos: int,
-}
-
 // ─── Editor State ─────────────────────────────────────────────────────────────
 
 Editor_State :: struct {
@@ -176,9 +169,12 @@ Editor_State :: struct {
     top_line:        int,
     view_lines:      int,
 
-    // Single-level undo
-    undo_entry:      Undo_Entry,
-    has_undo:        bool,
+    undo_stack:      Undo_Stack,
+    last_edit_time:  f64,
+
+    // OLS/LSP sync state (Phase 2)
+    lsp_version:     int,
+    lsp_dirty:       bool,
 }
 
 // ─── Editor Helpers ───────────────────────────────────────────────────────────
@@ -210,50 +206,58 @@ editor_get_selection_text :: proc(e: ^Editor_State, allocator: mem.Allocator) ->
     return strings.clone(content[start:end], allocator)
 }
 
-// Snapshot current state into undo buffer before a modification
-editor_snapshot_undo :: proc(e: ^Editor_State) {
-    if e.has_undo {
-        delete(e.undo_entry.content)
+_push_insert_undo :: proc(e: ^Editor_State, pos: int, text: string, cursor_before, cursor_after: int) {
+    cmd := Edit_Command{
+        op = .Insert,
+        pos = pos,
+        text = strings.clone(text, context.allocator),
+        cursor_before = cursor_before,
+        cursor_after = cursor_after,
+        at_time = rl.GetTime(),
     }
-    e.undo_entry.content    = gap_buffer_to_string(&e.buffer, context.allocator)
-    e.undo_entry.cursor_pos = e.cursor.pos
-    e.has_undo = true
+    undo_push(&e.undo_stack, cmd)
 }
 
-editor_undo :: proc(e: ^Editor_State) {
-    if !e.has_undo do return
-    content := e.undo_entry.content
-    saved_pos := e.undo_entry.cursor_pos
-
-    // Rebuild the buffer
-    delete(e.buffer.data)
-    cap := max(len(content) * 2, 1024)
-    gap_buffer_init(&e.buffer, cap)
-    if len(content) > 0 {
-        gap_buffer_insert(&e.buffer, 0, content)
+_push_delete_undo :: proc(e: ^Editor_State, pos: int, text: string, cursor_before, cursor_after: int) {
+    cmd := Edit_Command{
+        op = .Delete,
+        pos = pos,
+        text = strings.clone(text, context.allocator),
+        cursor_before = cursor_before,
+        cursor_after = cursor_after,
+        at_time = rl.GetTime(),
     }
-    e.cursor.pos = clamp(saved_pos, 0, e.buffer.length)
-    e.is_modified = true
-    e.has_undo = false
-    editor_sync_line_col(e)
+    undo_push(&e.undo_stack, cmd)
 }
 
 // ─── Text Operations ──────────────────────────────────────────────────────────
 
 editor_insert_char :: proc(e: ^Editor_State, r: rune) {
-    editor_snapshot_undo(e)
-    editor_delete_selection(e)
+    if editor_has_selection(e) {
+        start, end := editor_get_selection_range(e)
+        deleted := gap_buffer_to_string(&e.buffer, context.temp_allocator)[start:end]
+        _push_delete_undo(e, start, deleted, e.cursor.pos, start)
+        editor_delete_selection(e)
+    }
     // dev-2026-04: encode_rune(rune) -> ([4]u8, int)
     buf, n := utf8.encode_rune(r)
     s := string(buf[:n])
-    gap_buffer_insert(&e.buffer, e.cursor.pos, s)
+    before := e.cursor.pos
+    gap_buffer_insert(&e.buffer, before, s)
     e.cursor.pos += n
+    _push_insert_undo(e, before, s, before, e.cursor.pos)
+    e.last_edit_time = rl.GetTime()
+    e.lsp_dirty = true
     e.is_modified = true
 }
 
 editor_insert_newline :: proc(e: ^Editor_State) {
-    editor_snapshot_undo(e)
-    editor_delete_selection(e)
+    if editor_has_selection(e) {
+        start, end := editor_get_selection_range(e)
+        deleted := gap_buffer_to_string(&e.buffer, context.temp_allocator)[start:end]
+        _push_delete_undo(e, start, deleted, e.cursor.pos, start)
+        editor_delete_selection(e)
+    }
 
     // Carry indentation from current line
     content := gap_buffer_to_string(&e.buffer, context.temp_allocator)
@@ -262,25 +266,42 @@ editor_insert_newline :: proc(e: ^Editor_State) {
     spaces := 0
     for i := line_start; i < e.cursor.pos && content[i] == ' '; i += 1 { spaces += 1 }
 
+    before := e.cursor.pos
     gap_buffer_insert(&e.buffer, e.cursor.pos, "\n")
     e.cursor.pos += 1
+    ins := make([]u8, spaces + 1, context.temp_allocator)
+    ins[0] = '\n'
     for i in 0..<spaces {
         gap_buffer_insert(&e.buffer, e.cursor.pos, " ")
         e.cursor.pos += 1
+        ins[i + 1] = ' '
     }
+    _push_insert_undo(e, before, string(ins), before, e.cursor.pos)
+    e.last_edit_time = rl.GetTime()
+    e.lsp_dirty = true
     e.is_modified = true
     editor_sync_line_col(e)
     e.cursor.sticky_col = e.cursor.col
 }
 
 editor_handle_tab :: proc(e: ^Editor_State, config: ^Config) {
-    editor_snapshot_undo(e)
-    editor_delete_selection(e)
+    if editor_has_selection(e) {
+        start, end := editor_get_selection_range(e)
+        deleted := gap_buffer_to_string(&e.buffer, context.temp_allocator)[start:end]
+        _push_delete_undo(e, start, deleted, e.cursor.pos, start)
+        editor_delete_selection(e)
+    }
     spaces := config.tab_size
+    before := e.cursor.pos
+    ins := make([]u8, spaces, context.temp_allocator)
     for i in 0..<spaces {
         gap_buffer_insert(&e.buffer, e.cursor.pos, " ")
         e.cursor.pos += 1
+        ins[i] = ' '
     }
+    _push_insert_undo(e, before, string(ins), before, e.cursor.pos)
+    e.last_edit_time = rl.GetTime()
+    e.lsp_dirty = true
     e.is_modified = true
     editor_sync_line_col(e)
     e.cursor.sticky_col = e.cursor.col
@@ -288,14 +309,22 @@ editor_handle_tab :: proc(e: ^Editor_State, config: ^Config) {
 
 editor_delete_char_backward :: proc(e: ^Editor_State) {
     if editor_has_selection(e) {
-        editor_snapshot_undo(e)
+        start, end := editor_get_selection_range(e)
+        deleted := gap_buffer_to_string(&e.buffer, context.temp_allocator)[start:end]
+        _push_delete_undo(e, start, deleted, e.cursor.pos, start)
         editor_delete_selection(e)
+        e.last_edit_time = rl.GetTime()
+        e.lsp_dirty = true
         return
     }
     if e.cursor.pos > 0 {
-        editor_snapshot_undo(e)
-        gap_buffer_delete(&e.buffer, e.cursor.pos - 1, 1)
+        pos := e.cursor.pos - 1
+        deleted := string([]u8{gap_buffer_byte_at(&e.buffer, pos)})
+        gap_buffer_delete(&e.buffer, pos, 1)
+        _push_delete_undo(e, pos, deleted, e.cursor.pos, pos)
         e.cursor.pos -= 1
+        e.last_edit_time = rl.GetTime()
+        e.lsp_dirty = true
         e.is_modified = true
         editor_sync_line_col(e)
         e.cursor.sticky_col = e.cursor.col
@@ -304,13 +333,20 @@ editor_delete_char_backward :: proc(e: ^Editor_State) {
 
 editor_delete_char_forward :: proc(e: ^Editor_State) {
     if editor_has_selection(e) {
-        editor_snapshot_undo(e)
+        start, end := editor_get_selection_range(e)
+        deleted := gap_buffer_to_string(&e.buffer, context.temp_allocator)[start:end]
+        _push_delete_undo(e, start, deleted, e.cursor.pos, start)
         editor_delete_selection(e)
+        e.last_edit_time = rl.GetTime()
+        e.lsp_dirty = true
         return
     }
     if e.cursor.pos < e.buffer.length {
-        editor_snapshot_undo(e)
+        deleted := string([]u8{gap_buffer_byte_at(&e.buffer, e.cursor.pos)})
         gap_buffer_delete(&e.buffer, e.cursor.pos, 1)
+        _push_delete_undo(e, e.cursor.pos, deleted, e.cursor.pos, e.cursor.pos)
+        e.last_edit_time = rl.GetTime()
+        e.lsp_dirty = true
         e.is_modified = true
     }
 }

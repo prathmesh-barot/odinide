@@ -37,35 +37,36 @@ Theme :: struct {
 
 theme_odinide_dark :: proc() -> Theme {
     return Theme{
+        // Phase-2 mock palette (TokyoNight-ish)
         bg_base         = {26, 27, 38, 255},      // #1A1B26
-        bg_elevated     = {31, 32, 48, 255},      // #1F2030
+        bg_elevated     = {22, 22, 30, 255},      // #16161E
         bg_highlight    = {41, 43, 61, 255},      // #292B3D
         bg_active_line  = {35, 36, 55, 255},      // #232437
         border          = {46, 48, 80, 255},      // #2E3050
-        text_primary    = {214, 222, 255, 255},   // brighter for readability
-        text_muted      = {130, 141, 188, 255},   // higher contrast muted text
-        text_disabled   = {98, 108, 148, 255},    // still readable disabled text
+        text_primary    = {192, 202, 245, 255},   // #C0CAF5
+        text_muted      = {86, 95, 137, 255},     // #565F89
+        text_disabled   = {59, 66, 97, 255},      // #3B4261
         accent          = {122, 162, 247, 255},   // #7AA2F7
-        accent_warm     = {255, 158, 100, 255},   // #FF9E64
+        accent_warm     = {224, 175, 104, 255},   // #E0AF68
 
-        syn_keyword     = {187, 154, 247, 255},
-        syn_type        = {42, 195, 222, 255},
-        syn_proc        = {122, 162, 247, 255},
-        syn_string      = {158, 206, 106, 255},
-        syn_number      = {255, 158, 100, 255},
-        syn_comment     = {86, 95, 137, 255},
-        syn_operator    = {137, 221, 255, 255},
-        syn_punctuation = {192, 202, 245, 255},
+        syn_keyword     = {187, 154, 247, 255},   // #BB9AF7
+        syn_type        = {42, 195, 222, 255},    // #2AC3DE
+        syn_proc        = {122, 162, 247, 255},   // #7AA2F7
+        syn_string      = {158, 206, 106, 255},   // #9ECE6A
+        syn_number      = {255, 158, 100, 255},   // #FF9E64
+        syn_comment     = {86, 95, 137, 255},     // #565F89
+        syn_operator    = {137, 221, 255, 255},   // #89DDFF
+        syn_punctuation = {192, 202, 245, 255},   // #C0CAF5
 
-        sb_bg           = {122, 162, 247, 255},
-        sb_text         = {26, 27, 38, 255},
-        tab_active_bg   = {26, 27, 38, 255},
-        tab_inactive_bg = {22, 22, 30, 255},
-        tab_active_line = {122, 162, 247, 255},
+        sb_bg           = {122, 162, 247, 255},   // #7AA2F7
+        sb_text         = {15, 22, 41, 255},      // #0F1629-ish
+        tab_active_bg   = {26, 27, 38, 255},      // #1A1B26
+        tab_inactive_bg = {22, 22, 30, 255},      // #16161E
+        tab_active_line = {122, 162, 247, 255},   // #7AA2F7
 
-        activity_pill_active = {122, 162, 247, 30},
-        activity_pill_hover  = {255, 255, 255, 12},
-        gutter_bg            = {23, 24, 38, 255},
-        file_odin_text       = {214, 222, 255, 245},
+        activity_pill_active = {122, 162, 247, 35},
+        activity_pill_hover  = {255, 255, 255, 16},
+        gutter_bg            = {26, 27, 38, 255},
+        file_odin_text       = {122, 162, 247, 255},
     }
 }
